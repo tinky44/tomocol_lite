@@ -1,0 +1,71 @@
+name: Deploy Godot Web to Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "godot-project/**"
+      - "docs/**"
+      - ".github/workflows/godot-pages.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.2
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import Godot assets
+        working-directory: godot-project
+        run: |
+          godot --headless --editor --quit || true
+          sleep 5
+          godot --headless --editor --quit || true
+
+      - name: Build web export
+        run: |
+          mkdir -p build/web
+          cd godot-project
+          godot --headless --export-release "Web" ../build/web/game.html --verbose
+          cd ..
+          cp docs/index.html build/web/index.html
+          cp docs/play.html build/web/play.html
+          touch build/web/.nojekyll
+          test -f build/web/game.html
+          test -f build/web/game.wasm
+          test -f build/web/game.pck
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
