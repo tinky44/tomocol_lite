@@ -56,8 +56,8 @@ func _process(delta: float) -> void:
 
 	input_cooldown = maxf(input_cooldown - delta, 0.0)
 	_handle_camera_input(delta)
-	var selected_moved := _handle_player_input(delta)
-	_update_residents(delta, selected_moved)
+	_handle_player_input(delta)
+	_update_residents(delta)
 	_update_selection_marker()
 	_update_hud()
 	_update_camera()
@@ -295,10 +295,13 @@ func _room_spawn_points() -> Array[Vector3]:
 
 
 func _select_resident(step: int) -> void:
+	var previous_index := selected_index
 	for offset in range(1, residents.size() + 1):
 		var candidate := (selected_index + step * offset + residents.size()) % residents.size()
 		if _is_resident_active(candidate):
+			_release_selected_resident(previous_index)
 			selected_index = candidate
+			_hold_selected_resident()
 			return
 
 
@@ -317,13 +320,47 @@ func _adjust_selected_profile(key: String, amount: float, min_value: float, max_
 	residents[selected_index] = resident
 
 
-func _update_residents(delta: float, selected_moved: bool) -> void:
+func _update_residents(delta: float) -> void:
 	for index in range(residents.size()):
 		if not _is_resident_active(index):
 			continue
-		if selected_moved and index == selected_index:
+		if index == selected_index:
+			_hold_selected_resident()
 			continue
 		_update_resident(index, delta)
+
+
+func _hold_selected_resident() -> void:
+	if not _is_resident_active(selected_index):
+		return
+
+	var resident: Dictionary = residents[selected_index]
+	var partner := int(resident.get("partner", -1))
+	if partner >= 0 and partner < residents.size():
+		_clear_social_state(partner)
+
+	var node: Node3D = resident["node"] as Node3D
+	resident["state"] = "selected"
+	resident["partner"] = -1
+	resident["target"] = node.position
+	resident["timer"] = 9999.0
+	residents[selected_index] = resident
+	_set_chat_marker(selected_index, false)
+
+
+func _release_selected_resident(index: int) -> void:
+	if not _is_resident_active(index):
+		return
+
+	var resident: Dictionary = residents[index]
+	if String(resident.get("state", "idle")) != "selected":
+		return
+
+	var node: Node3D = resident["node"] as Node3D
+	resident["state"] = "idle"
+	resident["target"] = node.position
+	resident["timer"] = rng.randf_range(0.8, 2.0)
+	residents[index] = resident
 
 
 func _is_resident_active(index: int) -> bool:
@@ -406,6 +443,8 @@ func _find_available_partner(index: int) -> int:
 	for other in range(residents.size()):
 		if other == index:
 			continue
+		if other == selected_index:
+			continue
 		var resident: Dictionary = residents[other]
 		if not _is_resident_active(other):
 			continue
@@ -423,6 +462,9 @@ func _find_available_partner(index: int) -> int:
 
 
 func _start_meeting(a: int, b: int) -> void:
+	if a == selected_index or b == selected_index:
+		return
+
 	_break_partner(a)
 	_break_partner(b)
 
