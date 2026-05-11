@@ -11,6 +11,8 @@ const DEFAULT_HEIGHT := 1.60
 const DEFAULT_DOOR_HEIGHT := 2.00
 const HEIGHT_MIN := 1.35
 const HEIGHT_MAX := 2.60
+const ISLAND_RESIDENT_SCALE := 0.46
+const HOUSE_RESIDENT_SCALE := 1.0
 
 const BODY_AXIS_HEIGHT := 0
 const BODY_AXIS_HEAD := 1
@@ -228,7 +230,7 @@ func _enter_house() -> void:
 	camera_height = 2.7
 	camera_size = 5.6
 	camera_distance = 6.0
-	_place_residents(_room_spawn_points())
+	_place_single_resident_in_room(selected_index)
 
 
 func _exit_house() -> void:
@@ -239,21 +241,39 @@ func _exit_house() -> void:
 	camera_height = 3.2
 	camera_size = 7.0
 	camera_distance = 7.2
-	_place_residents(_island_spawn_points())
+	_place_all_residents_on_island()
 
 
-func _place_residents(spawn_points: Array[Vector3]) -> void:
+func _place_all_residents_on_island() -> void:
+	_place_residents(_island_spawn_points(), ISLAND_RESIDENT_SCALE, true)
+
+
+func _place_single_resident_in_room(active_index: int) -> void:
+	var spawn_points := _room_spawn_points()
 	for index in range(residents.size()):
-		var resident: Dictionary = residents[index]
-		var node: Node3D = resident["node"] as Node3D
-		node.position = spawn_points[index % spawn_points.size()]
-		node.rotation = Vector3.ZERO
-		resident["state"] = "idle"
-		resident["target"] = node.position
-		resident["timer"] = rng.randf_range(0.4, 1.6)
-		resident["partner"] = -1
-		residents[index] = resident
-		_set_chat_marker(index, false)
+		var visible := index == active_index
+		var spawn := spawn_points[0] if visible else Vector3.ZERO
+		_place_resident(index, spawn, HOUSE_RESIDENT_SCALE, visible)
+
+
+func _place_residents(spawn_points: Array[Vector3], visual_scale: float, visible: bool) -> void:
+	for index in range(residents.size()):
+		_place_resident(index, spawn_points[index % spawn_points.size()], visual_scale, visible)
+
+
+func _place_resident(index: int, position: Vector3, visual_scale: float, visible: bool) -> void:
+	var resident: Dictionary = residents[index]
+	var node: Node3D = resident["node"] as Node3D
+	node.visible = visible
+	node.position = position
+	node.rotation = Vector3.ZERO
+	node.scale = Vector3.ONE * visual_scale
+	resident["state"] = "idle"
+	resident["target"] = node.position
+	resident["timer"] = rng.randf_range(0.4, 1.6)
+	resident["partner"] = -1
+	residents[index] = resident
+	_set_chat_marker(index, false)
 
 
 func _island_spawn_points() -> Array[Vector3]:
@@ -275,7 +295,11 @@ func _room_spawn_points() -> Array[Vector3]:
 
 
 func _select_resident(step: int) -> void:
-	selected_index = (selected_index + step + residents.size()) % residents.size()
+	for offset in range(1, residents.size() + 1):
+		var candidate := (selected_index + step * offset + residents.size()) % residents.size()
+		if _is_resident_active(candidate):
+			selected_index = candidate
+			return
 
 
 func _adjust_selected_profile(key: String, amount: float, min_value: float, max_value: float) -> void:
@@ -295,9 +319,19 @@ func _adjust_selected_profile(key: String, amount: float, min_value: float, max_
 
 func _update_residents(delta: float, selected_moved: bool) -> void:
 	for index in range(residents.size()):
+		if not _is_resident_active(index):
+			continue
 		if selected_moved and index == selected_index:
 			continue
 		_update_resident(index, delta)
+
+
+func _is_resident_active(index: int) -> bool:
+	if index < 0 or index >= residents.size():
+		return false
+	var resident: Dictionary = residents[index]
+	var node: Node3D = resident["node"] as Node3D
+	return node.visible
 
 
 func _update_resident(index: int, delta: float) -> void:
@@ -373,6 +407,8 @@ func _find_available_partner(index: int) -> int:
 		if other == index:
 			continue
 		var resident: Dictionary = residents[other]
+		if not _is_resident_active(other):
+			continue
 		var state := String(resident.get("state", "idle"))
 		if state == "chat" or state == "meet":
 			continue
@@ -621,6 +657,7 @@ func _add_residents() -> void:
 		var profile: Dictionary = profiles[index]
 		var node := _create_resident(profile)
 		node.position = positions[index]
+		node.scale = Vector3.ONE * ISLAND_RESIDENT_SCALE
 		add_child(node)
 
 		residents.append({
@@ -825,8 +862,9 @@ func _update_selection_marker() -> void:
 	var node: Node3D = resident["node"] as Node3D
 	var profile: Dictionary = resident["profile"]
 	var height: float = float(profile.get("height", DEFAULT_HEIGHT))
+	var visual_scale: float = node.scale.x
 	selection_marker.position = Vector3(node.position.x, 0.018, node.position.z)
-	selection_marker.scale = Vector3(maxf(height * 0.34, 0.55), 1.0, maxf(height * 0.34, 0.55))
+	selection_marker.scale = Vector3(maxf(height * visual_scale * 0.34, 0.30), 1.0, maxf(height * visual_scale * 0.34, 0.30))
 
 
 func _add_hud() -> void:
