@@ -18,17 +18,17 @@
 
 Prototype controls:
 
-- `Q` / `E`: selected resident
+- `Q` / `Tab`: selected resident
 - `WASD` or arrow keys: move selected resident relative to the camera
-- `Enter` / `Space`: enter or exit the home near a door mat
+- `E`: action, such as entering or exiting the home near a door mat
+- `Enter` / `Space`: alternate action
+- `F`: toggle body edit mode
+- `1` - `6`: choose body edit field
+- `Z` / `X`: decrease/increase the active body edit field
 - `J` / `L`: rotate camera view
 - `I` / `K`: raise/lower camera
 - `-` / `=`: zoom camera
 - `Home`: reset to front camera
-- `Z` / `X`: height
-- `C` / `V`: head size
-- `B` / `N`: torso length
-- `R` / `T`: body width
 
 ## Specs
 

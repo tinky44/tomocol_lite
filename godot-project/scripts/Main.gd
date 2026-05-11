@@ -12,6 +12,14 @@ const DEFAULT_DOOR_HEIGHT := 2.00
 const HEIGHT_MIN := 1.35
 const HEIGHT_MAX := 2.60
 
+const BODY_AXIS_HEIGHT := 0
+const BODY_AXIS_HEAD := 1
+const BODY_AXIS_TORSO := 2
+const BODY_AXIS_LEGS := 3
+const BODY_AXIS_WIDTH := 4
+const BODY_AXIS_DEPTH := 5
+const BODY_AXIS_COUNT := 6
+
 const HOUSE_ENTRY_POINT := Vector3(0.0, 0.0, -0.82)
 const ROOM_EXIT_POINT := Vector3(1.45, 0.0, -1.43)
 
@@ -21,6 +29,8 @@ var current_place := "island"
 var selection_marker: MeshInstance3D
 var resident_label: Label
 var input_cooldown := 0.0
+var body_edit_mode := false
+var body_edit_axis := BODY_AXIS_HEIGHT
 var rng := RandomNumberGenerator.new()
 
 var build_root: Node3D
@@ -101,30 +111,21 @@ func _handle_player_input(delta: float) -> bool:
 		if Input.is_key_pressed(KEY_Q):
 			_select_resident(-1)
 			input_cooldown = 0.18
-		elif Input.is_key_pressed(KEY_E):
+		elif Input.is_key_pressed(KEY_TAB):
 			_select_resident(1)
 			input_cooldown = 0.18
-		elif Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE):
+		elif Input.is_key_pressed(KEY_F):
+			body_edit_mode = not body_edit_mode
+			input_cooldown = 0.20
+		elif body_edit_mode and _handle_body_axis_shortcuts():
+			input_cooldown = 0.16
+		elif Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE):
 			if _try_place_transition():
 				input_cooldown = 0.35
 				return true
 
-	if Input.is_key_pressed(KEY_Z):
-		_adjust_selected_profile("height", -0.46 * delta, HEIGHT_MIN, HEIGHT_MAX)
-	if Input.is_key_pressed(KEY_X):
-		_adjust_selected_profile("height", 0.46 * delta, HEIGHT_MIN, HEIGHT_MAX)
-	if Input.is_key_pressed(KEY_C):
-		_adjust_selected_profile("head_ratio", -0.05 * delta, 0.18, 0.30)
-	if Input.is_key_pressed(KEY_V):
-		_adjust_selected_profile("head_ratio", 0.05 * delta, 0.18, 0.30)
-	if Input.is_key_pressed(KEY_B):
-		_adjust_selected_profile("torso_ratio", -0.05 * delta, 0.26, 0.42)
-	if Input.is_key_pressed(KEY_N):
-		_adjust_selected_profile("torso_ratio", 0.05 * delta, 0.26, 0.42)
-	if Input.is_key_pressed(KEY_R):
-		_adjust_selected_profile("shoulder_scale", -0.25 * delta, 0.72, 1.35)
-	if Input.is_key_pressed(KEY_T):
-		_adjust_selected_profile("shoulder_scale", 0.25 * delta, 0.72, 1.35)
+	if body_edit_mode:
+		_handle_body_edit_input(delta)
 
 	var input := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
@@ -151,6 +152,52 @@ func _handle_player_input(delta: float) -> bool:
 	resident["target"] = node.position
 	residents[selected_index] = resident
 	return true
+
+
+func _handle_body_axis_shortcuts() -> bool:
+	if Input.is_key_pressed(KEY_1):
+		body_edit_axis = BODY_AXIS_HEIGHT
+		return true
+	if Input.is_key_pressed(KEY_2):
+		body_edit_axis = BODY_AXIS_HEAD
+		return true
+	if Input.is_key_pressed(KEY_3):
+		body_edit_axis = BODY_AXIS_TORSO
+		return true
+	if Input.is_key_pressed(KEY_4):
+		body_edit_axis = BODY_AXIS_LEGS
+		return true
+	if Input.is_key_pressed(KEY_5):
+		body_edit_axis = BODY_AXIS_WIDTH
+		return true
+	if Input.is_key_pressed(KEY_6):
+		body_edit_axis = BODY_AXIS_DEPTH
+		return true
+	return false
+
+
+func _handle_body_edit_input(delta: float) -> void:
+	var direction := 0.0
+	if Input.is_key_pressed(KEY_Z):
+		direction -= 1.0
+	if Input.is_key_pressed(KEY_X):
+		direction += 1.0
+	if direction == 0.0:
+		return
+
+	match body_edit_axis:
+		BODY_AXIS_HEIGHT:
+			_adjust_selected_profile("height", direction * 0.46 * delta, HEIGHT_MIN, HEIGHT_MAX)
+		BODY_AXIS_HEAD:
+			_adjust_selected_profile("head_ratio", direction * 0.05 * delta, 0.18, 0.30)
+		BODY_AXIS_TORSO:
+			_adjust_selected_profile("torso_ratio", direction * 0.05 * delta, 0.26, 0.42)
+		BODY_AXIS_LEGS:
+			_adjust_selected_profile("leg_bias", direction * 0.05 * delta, -0.10, 0.12)
+		BODY_AXIS_WIDTH:
+			_adjust_selected_profile("shoulder_scale", direction * 0.25 * delta, 0.72, 1.35)
+		BODY_AXIS_DEPTH:
+			_adjust_selected_profile("body_depth_scale", direction * 0.22 * delta, 0.70, 1.35)
 
 
 func _screen_input_to_world(input: Vector2) -> Vector3:
@@ -500,7 +547,9 @@ func _add_residents() -> void:
 			"height": 2.24,
 			"head_ratio": 0.22,
 			"torso_ratio": 0.33,
+			"leg_bias": 0.07,
 			"shoulder_scale": 0.94,
+			"body_depth_scale": 0.88,
 			"cloth_color": Color(0.78, 0.30, 0.42),
 			"skin_color": Color(0.96, 0.80, 0.64),
 			"hair_color": Color(0.14, 0.10, 0.09),
@@ -516,7 +565,9 @@ func _add_residents() -> void:
 			"height": 1.58,
 			"head_ratio": 0.25,
 			"torso_ratio": 0.35,
+			"leg_bias": 0.00,
 			"shoulder_scale": 1.02,
+			"body_depth_scale": 1.00,
 			"cloth_color": Color(0.34, 0.50, 0.80),
 			"skin_color": Color(0.94, 0.76, 0.62),
 			"hair_color": Color(0.26, 0.16, 0.10),
@@ -532,7 +583,9 @@ func _add_residents() -> void:
 			"height": 1.42,
 			"head_ratio": 0.28,
 			"torso_ratio": 0.34,
+			"leg_bias": -0.03,
 			"shoulder_scale": 0.82,
+			"body_depth_scale": 0.82,
 			"cloth_color": Color(0.28, 0.64, 0.48),
 			"skin_color": Color(0.91, 0.70, 0.55),
 			"hair_color": Color(0.08, 0.08, 0.10),
@@ -548,7 +601,9 @@ func _add_residents() -> void:
 			"height": 1.82,
 			"head_ratio": 0.23,
 			"torso_ratio": 0.32,
+			"leg_bias": 0.02,
 			"shoulder_scale": 1.16,
+			"body_depth_scale": 1.16,
 			"cloth_color": Color(0.66, 0.48, 0.26),
 			"skin_color": Color(0.96, 0.78, 0.60),
 			"hair_color": Color(0.12, 0.11, 0.09),
@@ -593,30 +648,35 @@ func _rebuild_avatar_mesh(avatar: Node3D, profile: Dictionary) -> void:
 	var height: float = float(profile.get("height", DEFAULT_HEIGHT))
 	var head_ratio: float = float(profile.get("head_ratio", 0.24))
 	var torso_ratio: float = float(profile.get("torso_ratio", 0.34))
+	var leg_bias: float = float(profile.get("leg_bias", 0.0))
 	var shoulder_scale: float = float(profile.get("shoulder_scale", 1.0))
+	var body_depth_scale: float = float(profile.get("body_depth_scale", 1.0))
 	var cloth_color: Color = profile.get("cloth_color", Color(0.55, 0.45, 0.75))
 	var skin_color: Color = profile.get("skin_color", Color(0.95, 0.78, 0.62))
 	var hair_color: Color = profile.get("hair_color", Color(0.12, 0.09, 0.08))
 
 	var head_height: float = clampf(height * head_ratio, 0.32, 0.58)
-	var torso_height: float = clampf(height * torso_ratio, 0.36, height * 0.48)
+	var torso_height: float = clampf(height * (torso_ratio - leg_bias), 0.34, height * 0.48)
 	var leg_height: float = maxf(height - head_height - torso_height, 0.36)
 	var shoulder_width: float = height * 0.22 * shoulder_scale
 	var hip_width: float = height * 0.17 * clampf(shoulder_scale * 0.86, 0.72, 1.12)
+	var torso_radius: float = shoulder_width * 0.34 * body_depth_scale
+	var leg_radius: float = height * 0.040 * clampf(body_depth_scale, 0.82, 1.18)
+	var arm_radius: float = height * 0.033 * clampf(body_depth_scale, 0.82, 1.18)
 
 	var leg_y: float = leg_height * 0.5
 	var torso_y: float = leg_height + torso_height * 0.5
 	var head_y: float = leg_height + torso_height + head_height * 0.5
 	var head_radius: float = head_height * 0.5
 
-	_add_avatar_part(avatar, "Left Leg", _capsule_mesh(leg_height, height * 0.040), Vector3(-hip_width * 0.24, leg_y, 0.0), cloth_color.darkened(0.18))
-	_add_avatar_part(avatar, "Right Leg", _capsule_mesh(leg_height, height * 0.040), Vector3(hip_width * 0.24, leg_y, 0.0), cloth_color.darkened(0.18))
-	_add_avatar_part(avatar, "Torso", _capsule_mesh(torso_height, shoulder_width * 0.34), Vector3(0.0, torso_y, 0.0), cloth_color)
+	_add_avatar_part(avatar, "Left Leg", _capsule_mesh(leg_height, leg_radius), Vector3(-hip_width * 0.24, leg_y, 0.0), cloth_color.darkened(0.18))
+	_add_avatar_part(avatar, "Right Leg", _capsule_mesh(leg_height, leg_radius), Vector3(hip_width * 0.24, leg_y, 0.0), cloth_color.darkened(0.18))
+	_add_avatar_part(avatar, "Torso", _capsule_mesh(torso_height, torso_radius), Vector3(0.0, torso_y, 0.0), cloth_color)
 	_add_avatar_part(avatar, "Head", _sphere_mesh(head_radius), Vector3(0.0, head_y, 0.0), skin_color)
 
 	var arm_length: float = torso_height * 0.82
-	_add_avatar_part(avatar, "Left Arm", _capsule_mesh(arm_length, height * 0.033), Vector3(-shoulder_width * 0.62, torso_y - 0.02, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, 7.0))
-	_add_avatar_part(avatar, "Right Arm", _capsule_mesh(arm_length, height * 0.033), Vector3(shoulder_width * 0.62, torso_y - 0.02, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, -7.0))
+	_add_avatar_part(avatar, "Left Arm", _capsule_mesh(arm_length, arm_radius), Vector3(-shoulder_width * 0.62, torso_y - 0.02, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, 7.0))
+	_add_avatar_part(avatar, "Right Arm", _capsule_mesh(arm_length, arm_radius), Vector3(shoulder_width * 0.62, torso_y - 0.02, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, -7.0))
 
 	_add_hair_parts(avatar, profile, head_y, head_radius, hair_color)
 	_add_face_parts(avatar, profile, head_y, head_radius)
@@ -792,20 +852,65 @@ func _update_hud() -> void:
 	var door_hint := ""
 	var node: Node3D = resident["node"] as Node3D
 	if current_place == "island" and node.position.distance_to(HOUSE_ENTRY_POINT) <= 0.78:
-		door_hint = "Enter/Space: enter home"
+		door_hint = "E: enter home"
 	elif current_place == "room" and node.position.distance_to(ROOM_EXIT_POINT) <= 0.78:
-		door_hint = "Enter/Space: exit home"
+		door_hint = "E: exit home"
 
-	resident_label.text = "%s  %s\n%.2fm  head %.2f  torso %.2f  width %.2f\n%s\n%s" % [
+	var edit_hint := "F: body edit | E: action | Q/Tab: resident"
+	if body_edit_mode:
+		edit_hint = "BODY EDIT %d %s %.2f | Z/X adjust | 1-6 axis | F close" % [
+			body_edit_axis + 1,
+			_body_axis_name(body_edit_axis),
+			_body_axis_value(profile, body_edit_axis)
+		]
+
+	resident_label.text = "%s  %s\n%.2fm  head %.2f  torso %.2f  leg %.2f  width %.2f  depth %.2f\n%s\n%s\n%s" % [
 		String(profile.get("name", "Resident")),
 		current_place,
 		float(profile.get("height", DEFAULT_HEIGHT)),
 		float(profile.get("head_ratio", 0.24)),
 		float(profile.get("torso_ratio", 0.34)),
+		float(profile.get("leg_bias", 0.0)),
 		float(profile.get("shoulder_scale", 1.0)),
+		float(profile.get("body_depth_scale", 1.0)),
 		String(resident.get("state", "idle")),
-		door_hint
+		door_hint,
+		edit_hint
 	]
+
+
+func _body_axis_name(axis: int) -> String:
+	match axis:
+		BODY_AXIS_HEIGHT:
+			return "height"
+		BODY_AXIS_HEAD:
+			return "head"
+		BODY_AXIS_TORSO:
+			return "torso"
+		BODY_AXIS_LEGS:
+			return "legs"
+		BODY_AXIS_WIDTH:
+			return "width"
+		BODY_AXIS_DEPTH:
+			return "depth"
+	return "body"
+
+
+func _body_axis_value(profile: Dictionary, axis: int) -> float:
+	match axis:
+		BODY_AXIS_HEIGHT:
+			return float(profile.get("height", DEFAULT_HEIGHT))
+		BODY_AXIS_HEAD:
+			return float(profile.get("head_ratio", 0.24))
+		BODY_AXIS_TORSO:
+			return float(profile.get("torso_ratio", 0.34))
+		BODY_AXIS_LEGS:
+			return float(profile.get("leg_bias", 0.0))
+		BODY_AXIS_WIDTH:
+			return float(profile.get("shoulder_scale", 1.0))
+		BODY_AXIS_DEPTH:
+			return float(profile.get("body_depth_scale", 1.0))
+	return 0.0
 
 
 func _set_chat_marker(index: int, enabled: bool) -> void:
