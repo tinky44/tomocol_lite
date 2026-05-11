@@ -1,0 +1,25 @@
+# Local and environment files
+*.local.*
+.env
+
+# Godot-specific ignores
+.godot/
+*.import
+*.translation
+
+# Runtime and generated artifacts
+artifacts/godot-runtime/
+artifacts/godot-captures/
+godot-project/.godot/
+
+# Build artifacts
+bin/
+build/
+dist/
+*.pck
+*.zip
+
+# System/Misc
+.DS_Store
+node_modules/
+
