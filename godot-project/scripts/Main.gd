@@ -1,5 +1,9 @@
 extends Node3D
 
+const ResidentAvatarScript := preload("res://scripts/ResidentAvatar.gd")
+
+const SAVE_PATH := "user://residents.json"
+
 const ROOM_WIDTH := 5.0
 const ROOM_DEPTH := 4.0
 const ROOM_HEIGHT := 2.4
@@ -10,9 +14,15 @@ const ISLAND_RADIUS_Z := 3.05
 const DEFAULT_HEIGHT := 1.60
 const DEFAULT_DOOR_HEIGHT := 2.00
 const HEIGHT_MIN := 1.35
-const HEIGHT_MAX := 2.60
+const HEIGHT_MAX := 3.20
 const ISLAND_RESIDENT_SCALE := 0.46
 const HOUSE_RESIDENT_SCALE := 1.0
+
+const EDIT_SECTION_BODY := 0
+const EDIT_SECTION_FACE := 1
+const EDIT_SECTION_HAIR := 2
+const EDIT_SECTION_CLOTHES := 3
+const EDIT_SECTION_COUNT := 4
 
 const BODY_AXIS_HEIGHT := 0
 const BODY_AXIS_HEAD := 1
@@ -20,10 +30,93 @@ const BODY_AXIS_TORSO := 2
 const BODY_AXIS_LEGS := 3
 const BODY_AXIS_WIDTH := 4
 const BODY_AXIS_DEPTH := 5
-const BODY_AXIS_COUNT := 6
+
+const FACE_AXIS_EYE_SPACING := 0
+const FACE_AXIS_EYE_HEIGHT := 1
+const FACE_AXIS_EYE_SIZE := 2
+const FACE_AXIS_MOUTH_WIDTH := 3
+const FACE_AXIS_MOUTH_HEIGHT := 4
+
+const HAIR_AXIS_STYLE := 0
+const HAIR_AXIS_COLOR := 1
+const HAIR_AXIS_VOLUME := 2
+
+const CLOTHES_AXIS_STYLE := 0
+const CLOTHES_AXIS_COLOR := 1
+const CLOTHES_AXIS_SKIN := 2
 
 const HOUSE_ENTRY_POINT := Vector3(0.0, 0.0, -0.82)
 const ROOM_EXIT_POINT := Vector3(1.45, 0.0, -1.43)
+
+const GIFT_CATEGORY_KEYS := ["food", "clothes", "furniture", "tools"]
+const GIFT_CATEGORY_LABELS := {
+	"food": "食べ物",
+	"clothes": "服",
+	"furniture": "家具",
+	"tools": "道具"
+}
+
+const FOOD_ITEMS := [
+	{"id": "onigiri", "name": "おにぎり", "tag": "米", "color": Color(0.96, 0.96, 0.90)},
+	{"id": "pancake", "name": "パンケーキ", "tag": "甘いもの", "color": Color(0.92, 0.70, 0.38)},
+	{"id": "soup", "name": "野菜スープ", "tag": "温かいもの", "color": Color(0.88, 0.48, 0.28)}
+]
+const CLOTHES_ITEMS := [
+	{"id": "casual", "name": "普段着", "tag": "落ち着いた服", "outfit": "casual", "color": Color(0.34, 0.50, 0.80)},
+	{"id": "skirt", "name": "スカート服", "tag": "かわいい服", "outfit": "skirt", "color": Color(0.78, 0.30, 0.42)},
+	{"id": "formal", "name": "きちんとした服", "tag": "きれいな服", "outfit": "formal", "color": Color(0.22, 0.28, 0.48)},
+	{"id": "room", "name": "部屋着", "tag": "楽な服", "outfit": "room", "color": Color(0.55, 0.62, 0.46)}
+]
+const FURNITURE_ITEMS := [
+	{"id": "stool", "name": "踏み台", "tag": "棚", "color": Color(0.62, 0.46, 0.28)},
+	{"id": "long_bed", "name": "長めのベッド", "tag": "寝具", "color": Color(0.64, 0.62, 0.80)},
+	{"id": "wide_chair", "name": "ゆったり椅子", "tag": "椅子", "color": Color(0.35, 0.58, 0.62)}
+]
+const TOOL_ITEMS := [
+	{"id": "camera", "name": "カメラ", "tag": "観察", "color": Color(0.18, 0.18, 0.20)},
+	{"id": "book", "name": "日記帳", "tag": "読書", "color": Color(0.58, 0.40, 0.26)},
+	{"id": "measure", "name": "メジャー", "tag": "採寸", "color": Color(0.95, 0.80, 0.36)}
+]
+
+const HAIR_COLORS := [
+	Color(0.12, 0.09, 0.08),
+	Color(0.26, 0.16, 0.10),
+	Color(0.62, 0.42, 0.22),
+	Color(0.08, 0.08, 0.10),
+	Color(0.58, 0.36, 0.48)
+]
+const CLOTH_COLORS := [
+	Color(0.34, 0.50, 0.80),
+	Color(0.78, 0.30, 0.42),
+	Color(0.28, 0.64, 0.48),
+	Color(0.66, 0.48, 0.26),
+	Color(0.22, 0.28, 0.48),
+	Color(0.55, 0.62, 0.46)
+]
+const SKIN_COLORS := [
+	Color(0.96, 0.80, 0.64),
+	Color(0.94, 0.76, 0.62),
+	Color(0.91, 0.70, 0.55),
+	Color(0.72, 0.50, 0.36),
+	Color(0.98, 0.86, 0.72)
+]
+const HAIR_STYLE_LABELS := ["短め", "長め", "おだんご", "ポニーテール", "ボブ"]
+const OUTFIT_LABELS := {
+	"casual": "普段着",
+	"skirt": "スカート服",
+	"formal": "きちんとした服",
+	"work": "エプロン",
+	"room": "部屋着"
+}
+const OUTFIT_ORDER := ["casual", "skirt", "formal", "work", "room"]
+
+const FURNITURE_ACTIONS := [
+	{"id": "shelf", "name": "棚", "position": Vector3(-2.03, 0.0, 0.86), "radius": 0.82},
+	{"id": "chair", "name": "椅子", "position": Vector3(-1.35, 0.0, -0.25), "radius": 0.78},
+	{"id": "desk", "name": "机", "position": Vector3(-1.35, 0.0, -1.10), "radius": 0.78},
+	{"id": "bed", "name": "ベッド", "position": Vector3(1.55, 0.0, 0.98), "radius": 0.95},
+	{"id": "door", "name": "ドア", "position": ROOM_EXIT_POINT, "radius": 0.86}
+]
 
 var residents: Array[Dictionary] = []
 var selected_index := 0
@@ -31,8 +124,12 @@ var current_place := "island"
 var selection_marker: MeshInstance3D
 var resident_label: Label
 var input_cooldown := 0.0
-var body_edit_mode := false
-var body_edit_axis := BODY_AXIS_HEIGHT
+var edit_mode := false
+var edit_section := EDIT_SECTION_BODY
+var edit_axis := 0
+var gift_category_index := 0
+var gift_item_index := 0
+var event_log := "島の暮らしが始まった。"
 var rng := RandomNumberGenerator.new()
 
 var build_root: Node3D
@@ -95,17 +192,17 @@ func _handle_camera_input(delta: float) -> void:
 	if Input.is_key_pressed(KEY_L):
 		camera_yaw += 1.15 * delta
 	if Input.is_key_pressed(KEY_I):
-		camera_height = clampf(camera_height + 1.8 * delta, 1.6, 6.0)
+		camera_height = clampf(camera_height + 1.8 * delta, 1.6, 6.4)
 	if Input.is_key_pressed(KEY_K):
-		camera_height = clampf(camera_height - 1.8 * delta, 1.6, 6.0)
+		camera_height = clampf(camera_height - 1.8 * delta, 1.6, 6.4)
 	if Input.is_key_pressed(KEY_MINUS):
-		camera_size = clampf(camera_size + 2.5 * delta, 4.4, 9.0)
+		camera_size = clampf(camera_size + 2.5 * delta, 4.4, 10.0)
 	if Input.is_key_pressed(KEY_EQUAL):
-		camera_size = clampf(camera_size - 2.5 * delta, 4.4, 9.0)
+		camera_size = clampf(camera_size - 2.5 * delta, 4.4, 10.0)
 	if Input.is_key_pressed(KEY_HOME):
 		camera_yaw = 0.0
-		camera_height = 2.7 if current_place == "room" else 3.2
-		camera_size = 5.6 if current_place == "room" else 7.0
+		camera_height = 2.9 if current_place == "room" else 3.2
+		camera_size = 6.0 if current_place == "room" else 7.0
 
 
 func _handle_player_input(delta: float) -> bool:
@@ -117,17 +214,29 @@ func _handle_player_input(delta: float) -> bool:
 			_select_resident(1)
 			input_cooldown = 0.18
 		elif Input.is_key_pressed(KEY_F):
-			body_edit_mode = not body_edit_mode
+			edit_mode = not edit_mode
 			input_cooldown = 0.20
-		elif body_edit_mode and _handle_body_axis_shortcuts():
+		elif edit_mode and Input.is_key_pressed(KEY_R):
+			_cycle_edit_section()
+			input_cooldown = 0.18
+		elif edit_mode and _handle_edit_axis_shortcuts():
 			input_cooldown = 0.16
+		elif Input.is_key_pressed(KEY_T):
+			_cycle_gift_category()
+			input_cooldown = 0.18
+		elif Input.is_key_pressed(KEY_U):
+			_cycle_gift_item()
+			input_cooldown = 0.18
+		elif Input.is_key_pressed(KEY_Y):
+			_give_selected_gift()
+			input_cooldown = 0.28
 		elif Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE):
-			if _try_place_transition():
+			if _try_primary_action():
 				input_cooldown = 0.35
 				return true
 
-	if body_edit_mode:
-		_handle_body_edit_input(delta)
+	if edit_mode:
+		_handle_edit_input(delta)
 
 	var input := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
@@ -156,29 +265,34 @@ func _handle_player_input(delta: float) -> bool:
 	return true
 
 
-func _handle_body_axis_shortcuts() -> bool:
+func _handle_edit_axis_shortcuts() -> bool:
 	if Input.is_key_pressed(KEY_1):
-		body_edit_axis = BODY_AXIS_HEIGHT
+		edit_axis = 0
 		return true
 	if Input.is_key_pressed(KEY_2):
-		body_edit_axis = BODY_AXIS_HEAD
+		edit_axis = 1
 		return true
 	if Input.is_key_pressed(KEY_3):
-		body_edit_axis = BODY_AXIS_TORSO
+		edit_axis = 2
 		return true
 	if Input.is_key_pressed(KEY_4):
-		body_edit_axis = BODY_AXIS_LEGS
+		edit_axis = 3
 		return true
 	if Input.is_key_pressed(KEY_5):
-		body_edit_axis = BODY_AXIS_WIDTH
+		edit_axis = 4
 		return true
 	if Input.is_key_pressed(KEY_6):
-		body_edit_axis = BODY_AXIS_DEPTH
+		edit_axis = 5
 		return true
 	return false
 
 
-func _handle_body_edit_input(delta: float) -> void:
+func _cycle_edit_section() -> void:
+	edit_section = (edit_section + 1) % EDIT_SECTION_COUNT
+	edit_axis = 0
+
+
+func _handle_edit_input(delta: float) -> void:
 	var direction := 0.0
 	if Input.is_key_pressed(KEY_Z):
 		direction -= 1.0
@@ -187,19 +301,139 @@ func _handle_body_edit_input(delta: float) -> void:
 	if direction == 0.0:
 		return
 
-	match body_edit_axis:
+	var discrete := _is_current_edit_discrete()
+	if discrete and input_cooldown > 0.0:
+		return
+
+	var changed := false
+	match edit_section:
+		EDIT_SECTION_BODY:
+			changed = _adjust_body_value(direction, delta)
+		EDIT_SECTION_FACE:
+			changed = _adjust_face_value(direction, delta)
+		EDIT_SECTION_HAIR:
+			changed = _adjust_hair_value(direction, delta)
+		EDIT_SECTION_CLOTHES:
+			changed = _adjust_clothes_value(direction, delta)
+
+	if changed and discrete:
+		input_cooldown = 0.18
+
+
+func _is_current_edit_discrete() -> bool:
+	if edit_section == EDIT_SECTION_HAIR:
+		return edit_axis == HAIR_AXIS_STYLE or edit_axis == HAIR_AXIS_COLOR
+	if edit_section == EDIT_SECTION_CLOTHES:
+		return edit_axis == CLOTHES_AXIS_STYLE or edit_axis == CLOTHES_AXIS_COLOR or edit_axis == CLOTHES_AXIS_SKIN
+	return false
+
+
+func _adjust_body_value(direction: float, delta: float) -> bool:
+	match edit_axis:
 		BODY_AXIS_HEIGHT:
-			_adjust_selected_profile("height", direction * 0.46 * delta, HEIGHT_MIN, HEIGHT_MAX)
+			return _adjust_selected_profile("height", direction * 0.56 * delta, HEIGHT_MIN, HEIGHT_MAX)
 		BODY_AXIS_HEAD:
-			_adjust_selected_profile("head_ratio", direction * 0.05 * delta, 0.18, 0.30)
+			return _adjust_selected_profile("head_ratio", direction * 0.05 * delta, 0.18, 0.30)
 		BODY_AXIS_TORSO:
-			_adjust_selected_profile("torso_ratio", direction * 0.05 * delta, 0.26, 0.42)
+			return _adjust_selected_profile("torso_ratio", direction * 0.05 * delta, 0.44, 0.56)
 		BODY_AXIS_LEGS:
-			_adjust_selected_profile("leg_bias", direction * 0.05 * delta, -0.10, 0.12)
+			return _adjust_selected_profile("leg_bias", direction * 0.05 * delta, -0.08, 0.08)
 		BODY_AXIS_WIDTH:
-			_adjust_selected_profile("shoulder_scale", direction * 0.25 * delta, 0.72, 1.35)
+			return _adjust_selected_profile("shoulder_scale", direction * 0.25 * delta, 0.72, 1.35)
 		BODY_AXIS_DEPTH:
-			_adjust_selected_profile("body_depth_scale", direction * 0.22 * delta, 0.70, 1.35)
+			return _adjust_selected_profile("body_depth_scale", direction * 0.22 * delta, 0.70, 1.35)
+	return false
+
+
+func _adjust_face_value(direction: float, delta: float) -> bool:
+	match edit_axis:
+		FACE_AXIS_EYE_SPACING:
+			return _adjust_selected_profile("eye_spacing", direction * 0.10 * delta, 0.28, 0.58)
+		FACE_AXIS_EYE_HEIGHT:
+			return _adjust_selected_profile("eye_height", direction * 0.08 * delta, -0.06, 0.12)
+		FACE_AXIS_EYE_SIZE:
+			return _adjust_selected_profile("eye_size", direction * 0.025 * delta, 0.038, 0.080)
+		FACE_AXIS_MOUTH_WIDTH:
+			return _adjust_selected_profile("mouth_width", direction * 0.10 * delta, 0.16, 0.36)
+		FACE_AXIS_MOUTH_HEIGHT:
+			return _adjust_selected_profile("mouth_y", direction * 0.10 * delta, -0.34, -0.06)
+	return false
+
+
+func _adjust_hair_value(direction: float, delta: float) -> bool:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	match edit_axis:
+		HAIR_AXIS_STYLE:
+			var old_style := int(profile.get("hair_style", 0))
+			var next_style := _wrap_index(old_style + int(sign(direction)), HAIR_STYLE_LABELS.size())
+			profile["hair_style"] = next_style
+		HAIR_AXIS_COLOR:
+			var old_color_index := int(profile.get("hair_color_index", 0))
+			var next_color_index := _wrap_index(old_color_index + int(sign(direction)), HAIR_COLORS.size())
+			profile["hair_color_index"] = next_color_index
+			profile["hair_color"] = HAIR_COLORS[next_color_index]
+		HAIR_AXIS_VOLUME:
+			return _adjust_selected_profile("hair_volume", direction * 0.16 * delta, 0.82, 1.20)
+		_:
+			return false
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_rebuild_resident_avatar(selected_index)
+	_save_residents()
+	return true
+
+
+func _adjust_clothes_value(direction: float, delta: float) -> bool:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	match edit_axis:
+		CLOTHES_AXIS_STYLE:
+			var old_outfit := String(profile.get("outfit_type", "casual"))
+			var current := OUTFIT_ORDER.find(old_outfit)
+			if current < 0:
+				current = 0
+			var next := _wrap_index(current + int(sign(direction)), OUTFIT_ORDER.size())
+			profile["outfit_type"] = OUTFIT_ORDER[next]
+		CLOTHES_AXIS_COLOR:
+			var old_color_index := int(profile.get("cloth_color_index", 0))
+			var next_color_index := _wrap_index(old_color_index + int(sign(direction)), CLOTH_COLORS.size())
+			profile["cloth_color_index"] = next_color_index
+			profile["cloth_color"] = CLOTH_COLORS[next_color_index]
+		CLOTHES_AXIS_SKIN:
+			var old_skin_index := int(profile.get("skin_color_index", 0))
+			var next_skin_index := _wrap_index(old_skin_index + int(sign(direction)), SKIN_COLORS.size())
+			profile["skin_color_index"] = next_skin_index
+			profile["skin_color"] = SKIN_COLORS[next_skin_index]
+		_:
+			return false
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_rebuild_resident_avatar(selected_index)
+	_save_residents()
+	return true
+
+
+func _adjust_selected_profile(key: String, amount: float, min_value: float, max_value: float) -> bool:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	var old_value: float = float(profile.get(key, 0.0))
+	var new_value: float = clampf(old_value + amount, min_value, max_value)
+	if absf(new_value - old_value) < 0.0005:
+		return false
+
+	profile[key] = new_value
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_rebuild_resident_avatar(selected_index)
+	_save_residents()
+	return true
+
+
+func _wrap_index(value: int, count: int) -> int:
+	if count <= 0:
+		return 0
+	return (value % count + count) % count
 
 
 func _screen_input_to_world(input: Vector2) -> Vector3:
@@ -208,18 +442,98 @@ func _screen_input_to_world(input: Vector2) -> Vector3:
 	return (right * input.x + forward * input.y).normalized()
 
 
+func _try_primary_action() -> bool:
+	if _try_place_transition():
+		return true
+	if _try_room_context_action():
+		return true
+	if _try_solve_selected_problem():
+		return true
+
+	var profile: Dictionary = residents[selected_index]["profile"]
+	_record_event("%s は少し様子を見た。" % String(profile.get("name", "Resident")))
+	return true
+
+
 func _try_place_transition() -> bool:
 	var selected := residents[selected_index]
+	var profile: Dictionary = selected["profile"]
 	var node: Node3D = selected["node"] as Node3D
 	if current_place == "island":
 		if node.position.distance_to(HOUSE_ENTRY_POINT) <= 0.78:
+			if float(profile.get("height", DEFAULT_HEIGHT)) > DEFAULT_DOOR_HEIGHT:
+				_record_event("%s は玄関で少し頭を下げて家に入った。" % String(profile.get("name", "Resident")))
 			_enter_house()
 			return true
 	else:
 		if node.position.distance_to(ROOM_EXIT_POINT) <= 0.78:
+			if float(profile.get("height", DEFAULT_HEIGHT)) > DEFAULT_DOOR_HEIGHT:
+				_record_event("%s はドア枠を意識して、ゆっくり部屋を出た。" % String(profile.get("name", "Resident")))
 			_exit_house()
 			return true
 	return false
+
+
+func _try_room_context_action() -> bool:
+	if current_place != "room":
+		return false
+
+	# 家具の近くで E を押したとき、身長に応じた短い生活反応を出す。
+	var node: Node3D = residents[selected_index]["node"] as Node3D
+	for action in FURNITURE_ACTIONS:
+		var position: Vector3 = action["position"]
+		var radius: float = float(action["radius"])
+		if node.position.distance_to(position) <= radius:
+			_play_furniture_event(String(action["id"]))
+			return true
+	return false
+
+
+func _play_furniture_event(action_id: String) -> void:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	var name := String(profile.get("name", "Resident"))
+	var height: float = float(profile.get("height", DEFAULT_HEIGHT))
+	var satisfaction_gain := 3.0
+	var message := ""
+
+	match action_id:
+		"shelf":
+			if height >= 1.90:
+				message = "%s は棚の上段を自然にのぞいた。少し便利そうだ。" % name
+				satisfaction_gain = 7.0
+			else:
+				message = "%s は棚の上段を見上げた。踏み台があると楽そうだ。" % name
+		"chair":
+			if height >= 1.95:
+				message = "%s は椅子に座り、脚の置き場を少し探した。" % name
+			else:
+				message = "%s は椅子でひと息ついた。" % name
+		"desk":
+			if height >= 1.95:
+				message = "%s は机の前で少し浅く腰をかけた。" % name
+			else:
+				message = "%s は机の上を片づけた。" % name
+		"bed":
+			if height >= 2.05:
+				message = "%s はベッドに横になり、足先の余白を確かめた。" % name
+				satisfaction_gain = 5.0
+			else:
+				message = "%s はベッドで少し休んだ。" % name
+		"door":
+			if height > DEFAULT_DOOR_HEIGHT:
+				message = "%s はドアの高さを意識して、通り方を少し工夫した。" % name
+				satisfaction_gain = 6.0
+			else:
+				message = "%s はドアの前で外の様子を見た。" % name
+		_:
+			message = "%s は部屋の中を見回した。" % name
+
+	_apply_satisfaction(profile, satisfaction_gain)
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_record_event(message)
+	_save_residents()
 
 
 func _enter_house() -> void:
@@ -227,8 +541,8 @@ func _enter_house() -> void:
 	island_root.visible = false
 	room_root.visible = true
 	camera_yaw = 0.0
-	camera_height = 2.7
-	camera_size = 5.6
+	camera_height = 2.9
+	camera_size = 6.0
 	camera_distance = 6.0
 	_place_single_resident_in_room(selected_index)
 
@@ -273,7 +587,7 @@ func _place_resident(index: int, position: Vector3, visual_scale: float, visible
 	resident["timer"] = rng.randf_range(0.4, 1.6)
 	resident["partner"] = -1
 	residents[index] = resident
-	_set_chat_marker(index, false)
+	_refresh_resident_markers(index)
 
 
 func _island_spawn_points() -> Array[Vector3]:
@@ -305,25 +619,11 @@ func _select_resident(step: int) -> void:
 			return
 
 
-func _adjust_selected_profile(key: String, amount: float, min_value: float, max_value: float) -> void:
-	var resident: Dictionary = residents[selected_index]
-	var profile: Dictionary = resident["profile"]
-	var old_value: float = float(profile.get(key, 0.0))
-	var new_value: float = clampf(old_value + amount, min_value, max_value)
-	if absf(new_value - old_value) < 0.0005:
-		return
-
-	profile[key] = new_value
-	var node: Node3D = resident["node"] as Node3D
-	_rebuild_avatar_mesh(node, profile)
-	resident["profile"] = profile
-	residents[selected_index] = resident
-
-
 func _update_residents(delta: float) -> void:
 	for index in range(residents.size()):
 		if not _is_resident_active(index):
 			continue
+		_update_problem_timer(index, delta)
 		if index == selected_index:
 			_hold_selected_resident()
 			continue
@@ -387,6 +687,22 @@ func _update_resident(index: int, delta: float) -> void:
 			_finish_chat_pair(index, partner)
 		return
 
+	if state == "fight":
+		resident["timer"] = float(resident.get("timer", 0.0)) - delta
+		residents[index] = resident
+		if float(resident["timer"]) <= 0.0:
+			_clear_social_state(index)
+		return
+
+	if state == "visit":
+		var visit_node: Node3D = resident["node"] as Node3D
+		var visit_target: Vector3 = resident.get("target", visit_node.position)
+		if _move_resident_toward(visit_node, visit_target, float(resident.get("speed", 0.7)), delta):
+			resident["state"] = "idle"
+			resident["timer"] = rng.randf_range(1.2, 2.4)
+		residents[index] = resident
+		return
+
 	if state == "meet":
 		var node: Node3D = resident["node"] as Node3D
 		var target: Vector3 = resident.get("target", node.position)
@@ -429,6 +745,9 @@ func _update_resident(index: int, delta: float) -> void:
 
 
 func _choose_next_action(index: int) -> void:
+	if current_place == "island" and rng.randf() < 0.18 and _try_start_visit(index):
+		return
+
 	if rng.randf() < 0.66:
 		var partner := _find_available_partner(index)
 		if partner != -1:
@@ -436,6 +755,43 @@ func _choose_next_action(index: int) -> void:
 			return
 
 	_start_wander(index)
+
+
+func _try_start_visit(index: int) -> bool:
+	var partner := _find_friend_partner(index)
+	if partner == -1:
+		return false
+
+	var resident: Dictionary = residents[index]
+	var profile: Dictionary = resident["profile"]
+	var partner_profile: Dictionary = residents[partner]["profile"]
+	resident["state"] = "visit"
+	resident["partner"] = partner
+	resident["target"] = HOUSE_ENTRY_POINT + Vector3(rng.randf_range(-0.25, 0.25), 0.0, rng.randf_range(0.35, 0.65))
+	resident["timer"] = 4.0
+	residents[index] = resident
+	_adjust_relationship(index, partner, 1, false)
+	_record_event("%s は %s の家の前へ遊びに来た。" % [String(profile.get("name", "Resident")), String(partner_profile.get("name", "Resident"))])
+	return true
+
+
+func _find_friend_partner(index: int) -> int:
+	var profile: Dictionary = residents[index]["profile"]
+	var candidates: Array[int] = []
+	for other in range(residents.size()):
+		if other == index or other == selected_index:
+			continue
+		if not _is_resident_active(other):
+			continue
+		var other_state := String(residents[other].get("state", "idle"))
+		if other_state == "chat" or other_state == "meet" or other_state == "fight":
+			continue
+		var other_name := String(residents[other]["profile"].get("name", "Resident"))
+		if _relationship_score(profile, other_name) >= 30:
+			candidates.append(other)
+	if candidates.is_empty():
+		return -1
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
 func _find_available_partner(index: int) -> int:
@@ -449,7 +805,7 @@ func _find_available_partner(index: int) -> int:
 		if not _is_resident_active(other):
 			continue
 		var state := String(resident.get("state", "idle"))
-		if state == "chat" or state == "meet":
+		if state == "chat" or state == "meet" or state == "fight" or state == "visit":
 			continue
 		if int(resident.get("partner", -1)) != -1:
 			continue
@@ -480,7 +836,7 @@ func _start_meeting(a: int, b: int) -> void:
 
 	var a_profile: Dictionary = a_resident["profile"]
 	var b_profile: Dictionary = b_resident["profile"]
-	var spacing := 0.70 + absf(float(a_profile["height"]) - float(b_profile["height"])) * 0.12
+	var spacing := 0.70 + absf(float(a_profile["height"]) - float(b_profile["height"])) * 0.16
 	var midpoint := (a_node.position + b_node.position) * 0.5
 	var a_target := _clamp_current_position(midpoint - direction * spacing * 0.5)
 	var b_target := _clamp_current_position(midpoint + direction * spacing * 0.5)
@@ -544,10 +900,51 @@ func _begin_chat_pair(a: int, b: int) -> void:
 	_set_chat_marker(a, true)
 	_set_chat_marker(b, true)
 
+	var height_diff := absf(float(a_resident["profile"].get("height", DEFAULT_HEIGHT)) - float(b_resident["profile"].get("height", DEFAULT_HEIGHT)))
+	if height_diff >= 0.45 and rng.randf() < 0.35:
+		_record_event("%s と %s は目線の高さを合わせながら話している。" % [
+			String(a_resident["profile"].get("name", "Resident")),
+			String(b_resident["profile"].get("name", "Resident"))
+		])
+
 
 func _finish_chat_pair(a: int, b: int) -> void:
-	_clear_social_state(a)
-	_clear_social_state(b)
+	# 会話は関係値を少し動かす。悪い方向に振れたときだけ、簡易的なけんか相談へつなぐ。
+	var delta := rng.randi_range(4, 9)
+	if rng.randf() < 0.13:
+		delta = -rng.randi_range(12, 22)
+
+	var score := _adjust_relationship(a, b, delta, true)
+	if score <= -24 and delta < 0:
+		_start_fight_pair(a, b)
+	else:
+		_clear_social_state(a)
+		_clear_social_state(b)
+
+
+func _start_fight_pair(a: int, b: int) -> void:
+	var a_resident: Dictionary = residents[a]
+	var b_resident: Dictionary = residents[b]
+	var a_profile: Dictionary = a_resident["profile"]
+	var b_profile: Dictionary = b_resident["profile"]
+	a_resident["state"] = "fight"
+	b_resident["state"] = "fight"
+	a_resident["timer"] = rng.randf_range(3.5, 6.0)
+	b_resident["timer"] = rng.randf_range(3.5, 6.0)
+	a_resident["partner"] = b
+	b_resident["partner"] = a
+	a_profile["current_problem"] = {"type": "make_up", "category": "relationship", "target": String(b_profile.get("name", "Resident")), "text": "仲直りしたい"}
+	b_profile["current_problem"] = {"type": "make_up", "category": "relationship", "target": String(a_profile.get("name", "Resident")), "text": "仲直りしたい"}
+	a_resident["profile"] = a_profile
+	b_resident["profile"] = b_profile
+	residents[a] = a_resident
+	residents[b] = b_resident
+	_set_chat_marker(a, false)
+	_set_chat_marker(b, false)
+	_refresh_resident_markers(a)
+	_refresh_resident_markers(b)
+	_record_event("%s と %s は少し言い合いになった。" % [String(a_profile.get("name", "Resident")), String(b_profile.get("name", "Resident"))])
+	_save_residents()
 
 
 func _break_partner(index: int) -> void:
@@ -619,86 +1016,13 @@ func _is_inside_island(position: Vector3) -> bool:
 
 
 func _add_residents() -> void:
-	var profiles: Array[Dictionary] = [
-		{
-			"name": "Haru",
-			"height": 2.24,
-			"head_ratio": 0.22,
-			"torso_ratio": 0.33,
-			"leg_bias": 0.07,
-			"shoulder_scale": 0.94,
-			"body_depth_scale": 0.88,
-			"cloth_color": Color(0.78, 0.30, 0.42),
-			"skin_color": Color(0.96, 0.80, 0.64),
-			"hair_color": Color(0.14, 0.10, 0.09),
-			"eye_spacing": 0.42,
-			"eye_height": 0.05,
-			"eye_size": 0.055,
-			"mouth_width": 0.26,
-			"mouth_y": -0.22,
-			"hair_style": 1
-		},
-		{
-			"name": "Mio",
-			"height": 1.58,
-			"head_ratio": 0.25,
-			"torso_ratio": 0.35,
-			"leg_bias": 0.00,
-			"shoulder_scale": 1.02,
-			"body_depth_scale": 1.00,
-			"cloth_color": Color(0.34, 0.50, 0.80),
-			"skin_color": Color(0.94, 0.76, 0.62),
-			"hair_color": Color(0.26, 0.16, 0.10),
-			"eye_spacing": 0.38,
-			"eye_height": 0.02,
-			"eye_size": 0.052,
-			"mouth_width": 0.22,
-			"mouth_y": -0.20,
-			"hair_style": 0
-		},
-		{
-			"name": "Sena",
-			"height": 1.42,
-			"head_ratio": 0.28,
-			"torso_ratio": 0.34,
-			"leg_bias": -0.03,
-			"shoulder_scale": 0.82,
-			"body_depth_scale": 0.82,
-			"cloth_color": Color(0.28, 0.64, 0.48),
-			"skin_color": Color(0.91, 0.70, 0.55),
-			"hair_color": Color(0.08, 0.08, 0.10),
-			"eye_spacing": 0.46,
-			"eye_height": 0.07,
-			"eye_size": 0.062,
-			"mouth_width": 0.20,
-			"mouth_y": -0.18,
-			"hair_style": 2
-		},
-		{
-			"name": "Riku",
-			"height": 1.82,
-			"head_ratio": 0.23,
-			"torso_ratio": 0.32,
-			"leg_bias": 0.02,
-			"shoulder_scale": 1.16,
-			"body_depth_scale": 1.16,
-			"cloth_color": Color(0.66, 0.48, 0.26),
-			"skin_color": Color(0.96, 0.78, 0.60),
-			"hair_color": Color(0.12, 0.11, 0.09),
-			"eye_spacing": 0.34,
-			"eye_height": 0.04,
-			"eye_size": 0.050,
-			"mouth_width": 0.28,
-			"mouth_y": -0.25,
-			"hair_style": 0
-		}
-	]
+	var profiles := _load_profiles()
 	var positions := _island_spawn_points()
 
 	for index in range(profiles.size()):
 		var profile: Dictionary = profiles[index]
 		var node := _create_resident(profile)
-		node.position = positions[index]
+		node.position = positions[index % positions.size()]
 		node.scale = Vector3.ONE * ISLAND_RESIDENT_SCALE
 		add_child(node)
 
@@ -709,83 +1033,561 @@ func _add_residents() -> void:
 			"target": node.position,
 			"timer": rng.randf_range(0.4, 1.8),
 			"partner": -1,
-			"speed": rng.randf_range(0.58, 0.86)
+			"speed": rng.randf_range(0.58, 0.86),
+			"problem_timer": rng.randf_range(5.0, 13.0)
 		})
+
+	_ensure_all_relationships()
+	_save_residents()
 
 
 func _create_resident(profile: Dictionary) -> Node3D:
-	var avatar := Node3D.new()
+	var avatar: Node3D = ResidentAvatarScript.new()
 	avatar.name = String(profile.get("name", "Resident"))
-	_rebuild_avatar_mesh(avatar, profile)
+	if avatar.has_method("build_from_profile"):
+		avatar.call("build_from_profile", profile, DEFAULT_DOOR_HEIGHT)
 	return avatar
 
 
-func _rebuild_avatar_mesh(avatar: Node3D, profile: Dictionary) -> void:
-	for child in avatar.get_children():
-		child.free()
+func _rebuild_resident_avatar(index: int) -> void:
+	var resident: Dictionary = residents[index]
+	var node: Node3D = resident["node"] as Node3D
+	var profile: Dictionary = resident["profile"]
+	if node.has_method("build_from_profile"):
+		node.call("build_from_profile", profile, DEFAULT_DOOR_HEIGHT)
+	_refresh_resident_markers(index)
 
+
+func _load_profiles() -> Array[Dictionary]:
+	# 住人プロフィールは user://residents.json に保存する。存在しない場合は初期住人を作る。
+	var profiles: Array[Dictionary] = []
+	if FileAccess.file_exists(SAVE_PATH):
+		var text := FileAccess.get_file_as_string(SAVE_PATH)
+		var parsed = JSON.parse_string(text)
+		if parsed is Array:
+			for raw_profile in parsed:
+				if raw_profile is Dictionary:
+					profiles.append(_profile_from_save(raw_profile))
+
+	if profiles.is_empty():
+		profiles = _default_profiles()
+
+	for index in range(profiles.size()):
+		profiles[index] = _ensure_profile_defaults(profiles[index], index)
+	return profiles
+
+
+func _default_profiles() -> Array[Dictionary]:
+	return [
+		{
+			"name": "Haru",
+			"height": 2.24,
+			"head_ratio": 0.23,
+			"torso_ratio": 0.50,
+			"leg_bias": 0.03,
+			"shoulder_scale": 0.94,
+			"body_depth_scale": 0.88,
+			"cloth_color_index": 1,
+			"cloth_color": CLOTH_COLORS[1],
+			"skin_color_index": 0,
+			"skin_color": SKIN_COLORS[0],
+			"hair_color_index": 0,
+			"hair_color": HAIR_COLORS[0],
+			"hair_style": 1,
+			"hair_volume": 1.0,
+			"eye_spacing": 0.42,
+			"eye_height": 0.05,
+			"eye_size": 0.055,
+			"mouth_width": 0.26,
+			"mouth_y": -0.22,
+			"outfit_type": "skirt",
+			"personality": "おだやか",
+			"likes": {"food": "甘いもの", "clothes": "かわいい服", "furniture": "寝具", "tools": "採寸"},
+			"satisfaction": 24.0,
+			"relationships": {},
+			"inventory": {}
+		},
+		{
+			"name": "Mio",
+			"height": 1.58,
+			"head_ratio": 0.25,
+			"torso_ratio": 0.51,
+			"leg_bias": 0.00,
+			"shoulder_scale": 1.02,
+			"body_depth_scale": 1.00,
+			"cloth_color_index": 0,
+			"cloth_color": CLOTH_COLORS[0],
+			"skin_color_index": 1,
+			"skin_color": SKIN_COLORS[1],
+			"hair_color_index": 1,
+			"hair_color": HAIR_COLORS[1],
+			"hair_style": 0,
+			"hair_volume": 1.0,
+			"eye_spacing": 0.38,
+			"eye_height": 0.02,
+			"eye_size": 0.052,
+			"mouth_width": 0.22,
+			"mouth_y": -0.20,
+			"outfit_type": "casual",
+			"personality": "まじめ",
+			"likes": {"food": "米", "clothes": "落ち着いた服", "furniture": "椅子", "tools": "読書"},
+			"satisfaction": 18.0,
+			"relationships": {},
+			"inventory": {}
+		},
+		{
+			"name": "Sena",
+			"height": 1.42,
+			"head_ratio": 0.28,
+			"torso_ratio": 0.52,
+			"leg_bias": -0.02,
+			"shoulder_scale": 0.82,
+			"body_depth_scale": 0.82,
+			"cloth_color_index": 2,
+			"cloth_color": CLOTH_COLORS[2],
+			"skin_color_index": 2,
+			"skin_color": SKIN_COLORS[2],
+			"hair_color_index": 3,
+			"hair_color": HAIR_COLORS[3],
+			"hair_style": 2,
+			"hair_volume": 1.0,
+			"eye_spacing": 0.46,
+			"eye_height": 0.07,
+			"eye_size": 0.062,
+			"mouth_width": 0.20,
+			"mouth_y": -0.18,
+			"outfit_type": "room",
+			"personality": "好奇心つよめ",
+			"likes": {"food": "温かいもの", "clothes": "楽な服", "furniture": "棚", "tools": "観察"},
+			"satisfaction": 16.0,
+			"relationships": {},
+			"inventory": {}
+		},
+		{
+			"name": "Riku",
+			"height": 1.82,
+			"head_ratio": 0.24,
+			"torso_ratio": 0.50,
+			"leg_bias": 0.01,
+			"shoulder_scale": 1.16,
+			"body_depth_scale": 1.16,
+			"cloth_color_index": 3,
+			"cloth_color": CLOTH_COLORS[3],
+			"skin_color_index": 0,
+			"skin_color": SKIN_COLORS[0],
+			"hair_color_index": 0,
+			"hair_color": HAIR_COLORS[0],
+			"hair_style": 0,
+			"hair_volume": 0.94,
+			"eye_spacing": 0.34,
+			"eye_height": 0.04,
+			"eye_size": 0.050,
+			"mouth_width": 0.28,
+			"mouth_y": -0.25,
+			"outfit_type": "formal",
+			"personality": "元気",
+			"likes": {"food": "米", "clothes": "きれいな服", "furniture": "椅子", "tools": "読書"},
+			"satisfaction": 20.0,
+			"relationships": {},
+			"inventory": {}
+		}
+	]
+
+
+func _ensure_profile_defaults(profile: Dictionary, index: int) -> Dictionary:
+	var defaults := _default_profiles()
+	var fallback: Dictionary = defaults[index % defaults.size()]
+	for key in fallback.keys():
+		if not profile.has(key):
+			profile[key] = fallback[key]
+
+	profile["height"] = clampf(float(profile.get("height", DEFAULT_HEIGHT)), HEIGHT_MIN, HEIGHT_MAX)
+	profile["head_ratio"] = clampf(float(profile.get("head_ratio", 0.24)), 0.18, 0.30)
+	profile["torso_ratio"] = clampf(float(profile.get("torso_ratio", 0.50)), 0.44, 0.56)
+	profile["leg_bias"] = clampf(float(profile.get("leg_bias", 0.0)), -0.08, 0.08)
+	profile["hair_style"] = _wrap_index(int(profile.get("hair_style", 0)), HAIR_STYLE_LABELS.size())
+	profile["hair_volume"] = clampf(float(profile.get("hair_volume", 1.0)), 0.82, 1.20)
+	profile["cloth_color_index"] = _wrap_index(int(profile.get("cloth_color_index", 0)), CLOTH_COLORS.size())
+	profile["skin_color_index"] = _wrap_index(int(profile.get("skin_color_index", 0)), SKIN_COLORS.size())
+	profile["hair_color_index"] = _wrap_index(int(profile.get("hair_color_index", 0)), HAIR_COLORS.size())
+	profile["cloth_color"] = _color_from_value(profile.get("cloth_color", CLOTH_COLORS[int(profile["cloth_color_index"])]), CLOTH_COLORS[int(profile["cloth_color_index"])])
+	profile["skin_color"] = _color_from_value(profile.get("skin_color", SKIN_COLORS[int(profile["skin_color_index"])]), SKIN_COLORS[int(profile["skin_color_index"])])
+	profile["hair_color"] = _color_from_value(profile.get("hair_color", HAIR_COLORS[int(profile["hair_color_index"])]), HAIR_COLORS[int(profile["hair_color_index"])])
+	profile["likes"] = _ensure_dict(profile.get("likes", fallback.get("likes", {})))
+	profile["relationships"] = _ensure_dict(profile.get("relationships", {}))
+	profile["inventory"] = _ensure_inventory(profile.get("inventory", {}))
+	if not profile.has("current_problem"):
+		profile["current_problem"] = {}
+	return profile
+
+
+func _profile_from_save(raw_profile: Dictionary) -> Dictionary:
+	var profile := raw_profile.duplicate(true)
+	profile["cloth_color"] = _color_from_value(profile.get("cloth_color", CLOTH_COLORS[0]), CLOTH_COLORS[0])
+	profile["skin_color"] = _color_from_value(profile.get("skin_color", SKIN_COLORS[0]), SKIN_COLORS[0])
+	profile["hair_color"] = _color_from_value(profile.get("hair_color", HAIR_COLORS[0]), HAIR_COLORS[0])
+	return profile
+
+
+func _profile_to_save(profile: Dictionary) -> Dictionary:
+	var saved := profile.duplicate(true)
+	saved["cloth_color"] = _color_to_html(profile.get("cloth_color", CLOTH_COLORS[0]))
+	saved["skin_color"] = _color_to_html(profile.get("skin_color", SKIN_COLORS[0]))
+	saved["hair_color"] = _color_to_html(profile.get("hair_color", HAIR_COLORS[0]))
+	return saved
+
+
+func _save_residents() -> void:
+	# Node 参照は保存せず、住人のプロフィール、外見、好み、関係値、所持品だけを JSON 化する。
+	var save_data := []
+	for resident in residents:
+		var profile: Dictionary = resident["profile"]
+		save_data.append(_profile_to_save(profile))
+
+	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify(save_data, "\t"))
+
+
+func _color_to_html(value) -> String:
+	if typeof(value) == TYPE_COLOR:
+		var color: Color = value
+		return "#" + color.to_html(false)
+	return String(value)
+
+
+func _color_from_value(value, fallback: Color) -> Color:
+	if typeof(value) == TYPE_COLOR:
+		return value
+	if typeof(value) == TYPE_STRING:
+		var text := String(value)
+		if text.is_empty():
+			return fallback
+		return Color.html(text)
+	return fallback
+
+
+func _ensure_dict(value) -> Dictionary:
+	if value is Dictionary:
+		return value
+	return {}
+
+
+func _ensure_inventory(value) -> Dictionary:
+	var inventory := _ensure_dict(value)
+	for category in GIFT_CATEGORY_KEYS:
+		if not inventory.has(category) or not (inventory[category] is Array):
+			inventory[category] = []
+	return inventory
+
+
+func _ensure_all_relationships() -> void:
+	for index in range(residents.size()):
+		var profile: Dictionary = residents[index]["profile"]
+		var relationships: Dictionary = profile.get("relationships", {})
+		for other in range(residents.size()):
+			if other == index:
+				continue
+			var other_name := String(residents[other]["profile"].get("name", "Resident"))
+			if not relationships.has(other_name):
+				relationships[other_name] = rng.randi_range(0, 12)
+		profile["relationships"] = relationships
+		residents[index]["profile"] = profile
+
+
+func _relationship_score(profile: Dictionary, other_name: String) -> int:
+	var relationships: Dictionary = profile.get("relationships", {})
+	return int(relationships.get(other_name, 0))
+
+
+func _adjust_relationship(a: int, b: int, amount: int, announce := false) -> int:
+	var a_profile: Dictionary = residents[a]["profile"]
+	var b_profile: Dictionary = residents[b]["profile"]
+	var a_name := String(a_profile.get("name", "Resident"))
+	var b_name := String(b_profile.get("name", "Resident"))
+	var a_relationships: Dictionary = a_profile.get("relationships", {})
+	var b_relationships: Dictionary = b_profile.get("relationships", {})
+	var old_score := int(a_relationships.get(b_name, 0))
+	var new_score := clampi(old_score + amount, -100, 100)
+	a_relationships[b_name] = new_score
+	b_relationships[a_name] = clampi(int(b_relationships.get(a_name, 0)) + amount, -100, 100)
+	a_profile["relationships"] = a_relationships
+	b_profile["relationships"] = b_relationships
+	residents[a]["profile"] = a_profile
+	residents[b]["profile"] = b_profile
+
+	if announce:
+		if old_score < 30 and new_score >= 30:
+			_record_event("%s と %s は友達らしくなってきた。" % [a_name, b_name])
+		elif amount > 0:
+			_record_event("%s と %s は少し仲良くなった。" % [a_name, b_name])
+		elif amount < 0:
+			_record_event("%s と %s は少し気まずくなった。" % [a_name, b_name])
+	_save_residents()
+	return new_score
+
+
+func _update_problem_timer(index: int, delta: float) -> void:
+	# 悩みは住人ごとに自然発生する。未解決の間は頭上の印を残す。
+	var resident: Dictionary = residents[index]
+	var profile: Dictionary = resident["profile"]
+	var current_problem: Dictionary = profile.get("current_problem", {})
+	if not current_problem.is_empty():
+		_set_problem_marker(index, true)
+		return
+
+	resident["problem_timer"] = float(resident.get("problem_timer", 8.0)) - delta
+	if float(resident["problem_timer"]) <= 0.0:
+		_assign_problem(index)
+		resident["problem_timer"] = rng.randf_range(13.0, 24.0)
+	residents[index] = resident
+
+
+func _assign_problem(index: int) -> void:
+	var resident: Dictionary = residents[index]
+	var profile: Dictionary = resident["profile"]
 	var height: float = float(profile.get("height", DEFAULT_HEIGHT))
-	var head_ratio: float = float(profile.get("head_ratio", 0.24))
-	var torso_ratio: float = float(profile.get("torso_ratio", 0.34))
-	var leg_bias: float = float(profile.get("leg_bias", 0.0))
-	var shoulder_scale: float = float(profile.get("shoulder_scale", 1.0))
-	var body_depth_scale: float = float(profile.get("body_depth_scale", 1.0))
-	var cloth_color: Color = profile.get("cloth_color", Color(0.55, 0.45, 0.75))
-	var skin_color: Color = profile.get("skin_color", Color(0.95, 0.78, 0.62))
-	var hair_color: Color = profile.get("hair_color", Color(0.12, 0.09, 0.08))
-
-	var head_height: float = clampf(height * head_ratio, 0.32, 0.58)
-	var torso_height: float = clampf(height * (torso_ratio - leg_bias), 0.34, height * 0.48)
-	var leg_height: float = maxf(height - head_height - torso_height, 0.36)
-	var shoulder_width: float = height * 0.22 * shoulder_scale
-	var hip_width: float = height * 0.17 * clampf(shoulder_scale * 0.86, 0.72, 1.12)
-	var torso_radius: float = shoulder_width * 0.34 * body_depth_scale
-	var leg_radius: float = height * 0.040 * clampf(body_depth_scale, 0.82, 1.18)
-	var arm_radius: float = height * 0.033 * clampf(body_depth_scale, 0.82, 1.18)
-
-	var leg_y: float = leg_height * 0.5
-	var torso_y: float = leg_height + torso_height * 0.5
-	var head_y: float = leg_height + torso_height + head_height * 0.5
-	var head_radius: float = head_height * 0.5
-
-	_add_avatar_part(avatar, "Left Leg", _capsule_mesh(leg_height, leg_radius), Vector3(-hip_width * 0.24, leg_y, 0.0), cloth_color.darkened(0.18))
-	_add_avatar_part(avatar, "Right Leg", _capsule_mesh(leg_height, leg_radius), Vector3(hip_width * 0.24, leg_y, 0.0), cloth_color.darkened(0.18))
-	_add_avatar_part(avatar, "Torso", _capsule_mesh(torso_height, torso_radius), Vector3(0.0, torso_y, 0.0), cloth_color)
-	_add_avatar_part(avatar, "Head", _sphere_mesh(head_radius), Vector3(0.0, head_y, 0.0), skin_color)
-
-	var arm_length: float = torso_height * 0.82
-	_add_avatar_part(avatar, "Left Arm", _capsule_mesh(arm_length, arm_radius), Vector3(-shoulder_width * 0.62, torso_y - 0.02, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, 7.0))
-	_add_avatar_part(avatar, "Right Arm", _capsule_mesh(arm_length, arm_radius), Vector3(shoulder_width * 0.62, torso_y - 0.02, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, -7.0))
-
-	_add_hair_parts(avatar, profile, head_y, head_radius, hair_color)
-	_add_face_parts(avatar, profile, head_y, head_radius)
+	var options: Array[Dictionary] = [
+		{"type": "hungry", "category": "food", "text": "なにか食べたい"},
+		{"type": "want_clothes", "category": "clothes", "text": "服を変えてみたい"},
+		{"type": "want_furniture", "category": "furniture", "text": "部屋に合う物がほしい"},
+		{"type": "want_tool", "category": "tools", "text": "小さな道具がほしい"},
+		{"type": "make_friend", "category": "relationship", "text": "誰かと仲良くなりたい"}
+	]
 
 	if height > DEFAULT_DOOR_HEIGHT:
-		_add_avatar_part(avatar, "Door Height Reference", _box_mesh(Vector3(shoulder_width * 1.16, 0.026, 0.026)), Vector3(0.0, DEFAULT_DOOR_HEIGHT, 0.0), Color(0.96, 0.86, 0.34))
+		options.append({"type": "high_door", "category": "height", "text": "ドアの通り方を少し考えたい"})
+	if height >= 1.90:
+		options.append({"type": "tall_help", "category": "height", "text": "高い棚を手伝えそう"})
+	if height <= 1.52:
+		options.append({"type": "shelf_help", "category": "height", "text": "棚の上段を取ってほしい"})
+
+	var problem: Dictionary = options[rng.randi_range(0, options.size() - 1)]
+	profile["current_problem"] = problem
+	resident["profile"] = profile
+	residents[index] = resident
+	_set_problem_marker(index, true)
+	_record_event("%s は「%s」と思っている。" % [String(profile.get("name", "Resident")), String(problem.get("text", "相談がある"))])
+	_save_residents()
 
 
-func _add_hair_parts(avatar: Node3D, profile: Dictionary, head_y: float, head_radius: float, hair_color: Color) -> void:
-	var hair_style := int(profile.get("hair_style", 0))
-	_add_avatar_part(avatar, "Hair Cap", _sphere_mesh(head_radius * 1.02), Vector3(0.0, head_y + head_radius * 0.14, -head_radius * 0.08), hair_color)
+func _try_solve_selected_problem() -> bool:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	var problem: Dictionary = profile.get("current_problem", {})
+	if problem.is_empty():
+		return false
 
-	if hair_style == 1:
-		_add_avatar_part(avatar, "Back Hair", _capsule_mesh(head_radius * 1.35, head_radius * 0.34), Vector3(0.0, head_y - head_radius * 0.55, -head_radius * 0.64), hair_color, Vector3(6.0, 0.0, 0.0))
-	elif hair_style == 2:
-		_add_avatar_part(avatar, "Left Bun", _sphere_mesh(head_radius * 0.34), Vector3(-head_radius * 0.82, head_y + head_radius * 0.12, -head_radius * 0.08), hair_color)
-		_add_avatar_part(avatar, "Right Bun", _sphere_mesh(head_radius * 0.34), Vector3(head_radius * 0.82, head_y + head_radius * 0.12, -head_radius * 0.08), hair_color)
+	var name := String(profile.get("name", "Resident"))
+	var problem_type := String(problem.get("type", ""))
+	var message := ""
+	var satisfaction_gain := 8.0
+
+	match problem_type:
+		"hungry":
+			var food := _best_item_for_profile("food", profile)
+			_add_inventory_item(profile, "food", String(food.get("name", "食べ物")))
+			message = "%s に %s を渡した。満足そうだ。" % [name, String(food.get("name", "食べ物"))]
+		"want_clothes":
+			var clothes := _best_item_for_profile("clothes", profile)
+			_apply_clothes_item(profile, clothes)
+			_add_inventory_item(profile, "clothes", String(clothes.get("name", "服")))
+			message = "%s は %s に着替えた。" % [name, String(clothes.get("name", "服"))]
+		"want_furniture":
+			var furniture := _best_item_for_profile("furniture", profile)
+			_add_inventory_item(profile, "furniture", String(furniture.get("name", "家具")))
+			message = "%s の部屋に %s を置くことにした。" % [name, String(furniture.get("name", "家具"))]
+		"want_tool":
+			var tool := _best_item_for_profile("tools", profile)
+			_add_inventory_item(profile, "tools", String(tool.get("name", "道具")))
+			message = "%s は %s を受け取った。" % [name, String(tool.get("name", "道具"))]
+		"make_friend":
+			var partner := _find_any_partner(selected_index)
+			if partner != -1:
+				_adjust_relationship(selected_index, partner, 12, true)
+				message = "%s は %s と話すきっかけを作った。" % [name, String(residents[partner]["profile"].get("name", "Resident"))]
+			else:
+				message = "%s は少し気持ちを整理した。" % name
+		"make_up":
+			var target_name := String(problem.get("target", ""))
+			var target_index := _find_resident_by_name(target_name)
+			if target_index != -1:
+				_adjust_relationship(selected_index, target_index, 30, true)
+				message = "%s は %s と仲直りした。" % [name, target_name]
+			else:
+				message = "%s は仲直りの言葉を考えた。" % name
+		"high_door":
+			message = "%s はドアの前で頭を少し下げる癖をつかんだ。" % name
+			satisfaction_gain = 7.0
+		"tall_help":
+			var helped := _find_short_resident()
+			if helped != -1:
+				_adjust_relationship(selected_index, helped, 10, true)
+				message = "%s は %s の代わりに棚の上段を取った。" % [name, String(residents[helped]["profile"].get("name", "Resident"))]
+			else:
+				message = "%s は棚の上段を整えた。" % name
+		"shelf_help":
+			var helper := _find_tall_resident()
+			if helper != -1:
+				_adjust_relationship(selected_index, helper, 10, true)
+				message = "%s は %s に棚の上段を取ってもらった。" % [name, String(residents[helper]["profile"].get("name", "Resident"))]
+			else:
+				_add_inventory_item(profile, "furniture", "踏み台")
+				message = "%s は踏み台を使うことにした。" % name
+		_:
+			message = "%s の相談を聞いた。" % name
+
+	_apply_satisfaction(profile, satisfaction_gain)
+	profile["current_problem"] = {}
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_rebuild_resident_avatar(selected_index)
+	_set_problem_marker(selected_index, false)
+	_record_event(message)
+	_save_residents()
+	return true
 
 
-func _add_face_parts(avatar: Node3D, profile: Dictionary, head_y: float, head_radius: float) -> void:
-	var eye_spacing: float = float(profile.get("eye_spacing", 0.40)) * head_radius
-	var eye_height: float = head_y + float(profile.get("eye_height", 0.04)) * head_radius
-	var eye_size: float = float(profile.get("eye_size", 0.052)) * head_radius
-	var mouth_width: float = float(profile.get("mouth_width", 0.24)) * head_radius
-	var mouth_y: float = head_y + float(profile.get("mouth_y", -0.20)) * head_radius
-	var face_z: float = head_radius * 0.86
+func _best_item_for_profile(category: String, profile: Dictionary) -> Dictionary:
+	var likes: Dictionary = profile.get("likes", {})
+	var liked_tag := String(likes.get(category, ""))
+	var items := _gift_items_for_category(category)
+	for item in items:
+		if String(item.get("tag", "")) == liked_tag:
+			return item
+	return items[0]
 
-	_add_avatar_part(avatar, "Left Eye", _sphere_mesh(eye_size), Vector3(-eye_spacing, eye_height, face_z), Color(0.05, 0.04, 0.04))
-	_add_avatar_part(avatar, "Right Eye", _sphere_mesh(eye_size), Vector3(eye_spacing, eye_height, face_z), Color(0.05, 0.04, 0.04))
-	_add_avatar_part(avatar, "Mouth", _box_mesh(Vector3(mouth_width, eye_size * 0.55, eye_size * 0.45)), Vector3(0.0, mouth_y, face_z + eye_size * 0.18), Color(0.46, 0.13, 0.16))
+
+func _find_any_partner(index: int) -> int:
+	for other in range(residents.size()):
+		if other != index:
+			return other
+	return -1
+
+
+func _find_resident_by_name(target_name: String) -> int:
+	for index in range(residents.size()):
+		var profile: Dictionary = residents[index]["profile"]
+		if String(profile.get("name", "Resident")) == target_name:
+			return index
+	return -1
+
+
+func _find_tall_resident() -> int:
+	for index in range(residents.size()):
+		if index == selected_index:
+			continue
+		var profile: Dictionary = residents[index]["profile"]
+		if float(profile.get("height", DEFAULT_HEIGHT)) >= 1.90:
+			return index
+	return -1
+
+
+func _find_short_resident() -> int:
+	for index in range(residents.size()):
+		if index == selected_index:
+			continue
+		var profile: Dictionary = residents[index]["profile"]
+		if float(profile.get("height", DEFAULT_HEIGHT)) <= 1.55:
+			return index
+	return -1
+
+
+func _cycle_gift_category() -> void:
+	gift_category_index = _wrap_index(gift_category_index + 1, GIFT_CATEGORY_KEYS.size())
+	gift_item_index = 0
+
+
+func _cycle_gift_item() -> void:
+	gift_item_index = _wrap_index(gift_item_index + 1, _gift_items_for_current_category().size())
+
+
+func _give_selected_gift() -> void:
+	var category := _current_gift_category()
+	var item := _current_gift_item()
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	var name := String(profile.get("name", "Resident"))
+	var item_name := String(item.get("name", "贈り物"))
+	var item_tag := String(item.get("tag", ""))
+	var likes: Dictionary = profile.get("likes", {})
+	var liked := String(likes.get(category, "")) == item_tag
+	var gain := 12.0 if liked else 5.0
+
+	_add_inventory_item(profile, category, item_name)
+	if category == "clothes":
+		_apply_clothes_item(profile, item)
+		_rebuild_resident_avatar(selected_index)
+
+	var problem: Dictionary = profile.get("current_problem", {})
+	if not problem.is_empty() and String(problem.get("category", "")) == category:
+		profile["current_problem"] = {}
+		gain += 6.0
+		_set_problem_marker(selected_index, false)
+
+	_apply_satisfaction(profile, gain)
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_record_event("%s に %s を渡した。%s" % [name, item_name, "好みに合った。" if liked else "少しうれしそうだ。"])
+	_save_residents()
+
+
+func _current_gift_category() -> String:
+	return String(GIFT_CATEGORY_KEYS[gift_category_index % GIFT_CATEGORY_KEYS.size()])
+
+
+func _current_gift_item() -> Dictionary:
+	var items := _gift_items_for_current_category()
+	return items[gift_item_index % items.size()]
+
+
+func _gift_items_for_current_category() -> Array:
+	return _gift_items_for_category(_current_gift_category())
+
+
+func _gift_items_for_category(category: String) -> Array:
+	match category:
+		"food":
+			return FOOD_ITEMS
+		"clothes":
+			return CLOTHES_ITEMS
+		"furniture":
+			return FURNITURE_ITEMS
+		"tools":
+			return TOOL_ITEMS
+	return FOOD_ITEMS
+
+
+func _add_inventory_item(profile: Dictionary, category: String, item_name: String) -> void:
+	var inventory := _ensure_inventory(profile.get("inventory", {}))
+	var list: Array = inventory.get(category, [])
+	list.append(item_name)
+	inventory[category] = list
+	profile["inventory"] = inventory
+
+
+func _apply_clothes_item(profile: Dictionary, item: Dictionary) -> void:
+	profile["outfit_type"] = String(item.get("outfit", "casual"))
+	profile["cloth_color"] = item.get("color", profile.get("cloth_color", CLOTH_COLORS[0]))
+	var color_index := _nearest_color_index(profile["cloth_color"], CLOTH_COLORS)
+	profile["cloth_color_index"] = color_index
+
+
+func _nearest_color_index(color: Color, palette: Array) -> int:
+	var best_index := 0
+	var best_distance := 9999.0
+	for index in range(palette.size()):
+		var other: Color = palette[index]
+		var distance := absf(color.r - other.r) + absf(color.g - other.g) + absf(color.b - other.b)
+		if distance < best_distance:
+			best_distance = distance
+			best_index = index
+	return best_index
+
+
+func _apply_satisfaction(profile: Dictionary, amount: float) -> void:
+	profile["satisfaction"] = clampf(float(profile.get("satisfaction", 0.0)) + amount, 0.0, 100.0)
 
 
 func _add_lights() -> void:
@@ -817,7 +1619,7 @@ func _update_camera() -> void:
 
 	var target := Vector3(0.0, 0.90, -0.25)
 	if current_place == "room":
-		target = Vector3(0.0, 1.04, -0.05)
+		target = Vector3(0.0, 1.15, -0.05)
 
 	var offset := Vector3(sin(camera_yaw) * camera_distance, camera_height, cos(camera_yaw) * camera_distance)
 	camera.position = target + offset
@@ -884,7 +1686,7 @@ func _add_furniture() -> void:
 
 
 func _add_scale_guides() -> void:
-	for i in range(1, 6):
+	for i in range(1, 8):
 		var height := float(i) * 0.5
 		_add_box("Height Mark %.1fm" % height, Vector3(0.42, 0.014, 0.018), Vector3(2.22, height, -ROOM_DEPTH * 0.5 + 0.095), Color(0.34, 0.39, 0.43))
 
@@ -914,6 +1716,9 @@ func _add_hud() -> void:
 	canvas.name = "Resident HUD"
 	resident_label = Label.new()
 	resident_label.position = Vector2(16.0, 14.0)
+	var japanese_font := SystemFont.new()
+	japanese_font.font_names = ["Yu Gothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP"]
+	resident_label.add_theme_font_override("font", japanese_font)
 	resident_label.add_theme_color_override("font_color", Color(0.10, 0.12, 0.14))
 	resident_label.add_theme_color_override("font_shadow_color", Color(1.0, 1.0, 1.0, 0.82))
 	resident_label.add_theme_constant_override("shadow_offset_x", 1)
@@ -929,68 +1734,191 @@ func _update_hud() -> void:
 
 	var resident: Dictionary = residents[selected_index]
 	var profile: Dictionary = resident["profile"]
-	var door_hint := ""
 	var node: Node3D = resident["node"] as Node3D
+	var place_label := "部屋" if current_place == "room" else "島"
+	var door_hint := ""
 	if current_place == "island" and node.position.distance_to(HOUSE_ENTRY_POINT) <= 0.78:
-		door_hint = "E: enter home"
+		door_hint = "E: 家に入る"
 	elif current_place == "room" and node.position.distance_to(ROOM_EXIT_POINT) <= 0.78:
-		door_hint = "E: exit home"
+		door_hint = "E: 家から出る"
+	elif current_place == "room":
+		door_hint = "E: 近くの家具/相談"
+	else:
+		door_hint = "E: 相談"
 
-	var edit_hint := "F: body edit | E: action | Q/Tab: resident"
-	if body_edit_mode:
-		edit_hint = "BODY EDIT %d %s %.2f | Z/X adjust | 1-6 axis | F close" % [
-			body_edit_axis + 1,
-			_body_axis_name(body_edit_axis),
-			_body_axis_value(profile, body_edit_axis)
+	var problem: Dictionary = profile.get("current_problem", {})
+	var problem_text := String(problem.get("text", "なし")) if not problem.is_empty() else "なし"
+	var gift_item := _current_gift_item()
+	var gift_text := "%s / %s" % [String(GIFT_CATEGORY_LABELS.get(_current_gift_category(), "贈り物")), String(gift_item.get("name", "贈り物"))]
+
+	var edit_hint := "F: 編集  R: 種類切替  Z/X: 調整  T/U/Y: 贈り物"
+	if edit_mode:
+		edit_hint = "編集中 %s %d %s %.2f | R:種類 1-6:項目 Z/X:調整 F:終了" % [
+			_edit_section_name(edit_section),
+			edit_axis + 1,
+			_edit_axis_name(),
+			_edit_axis_value(profile)
 		]
 
-	resident_label.text = "%s  %s\n%.2fm  head %.2f  torso %.2f  leg %.2f  width %.2f  depth %.2f\n%s\n%s\n%s" % [
+	resident_label.text = "%s  %s\n身長 %.2fm  頭 %.2f  胴 %.2f  脚補正 %.2f  幅 %.2f  厚み %.2f\n性格: %s  満足度: %.0f  状態: %s\n相談: %s\n贈り物: %s\n%s\n%s\n%s" % [
 		String(profile.get("name", "Resident")),
-		current_place,
+		place_label,
 		float(profile.get("height", DEFAULT_HEIGHT)),
 		float(profile.get("head_ratio", 0.24)),
-		float(profile.get("torso_ratio", 0.34)),
+		float(profile.get("torso_ratio", 0.50)),
 		float(profile.get("leg_bias", 0.0)),
 		float(profile.get("shoulder_scale", 1.0)),
 		float(profile.get("body_depth_scale", 1.0)),
-		String(resident.get("state", "idle")),
+		String(profile.get("personality", "ふつう")),
+		float(profile.get("satisfaction", 0.0)),
+		_state_label(String(resident.get("state", "idle"))),
+		problem_text,
+		gift_text,
 		door_hint,
-		edit_hint
+		edit_hint,
+		event_log
 	]
 
 
-func _body_axis_name(axis: int) -> String:
-	match axis:
-		BODY_AXIS_HEIGHT:
-			return "height"
-		BODY_AXIS_HEAD:
-			return "head"
-		BODY_AXIS_TORSO:
-			return "torso"
-		BODY_AXIS_LEGS:
-			return "legs"
-		BODY_AXIS_WIDTH:
-			return "width"
-		BODY_AXIS_DEPTH:
-			return "depth"
-	return "body"
+func _edit_section_name(section: int) -> String:
+	match section:
+		EDIT_SECTION_BODY:
+			return "体型"
+		EDIT_SECTION_FACE:
+			return "顔"
+		EDIT_SECTION_HAIR:
+			return "髪"
+		EDIT_SECTION_CLOTHES:
+			return "服"
+	return "編集"
 
 
-func _body_axis_value(profile: Dictionary, axis: int) -> float:
-	match axis:
-		BODY_AXIS_HEIGHT:
-			return float(profile.get("height", DEFAULT_HEIGHT))
-		BODY_AXIS_HEAD:
-			return float(profile.get("head_ratio", 0.24))
-		BODY_AXIS_TORSO:
-			return float(profile.get("torso_ratio", 0.34))
-		BODY_AXIS_LEGS:
-			return float(profile.get("leg_bias", 0.0))
-		BODY_AXIS_WIDTH:
-			return float(profile.get("shoulder_scale", 1.0))
-		BODY_AXIS_DEPTH:
-			return float(profile.get("body_depth_scale", 1.0))
+func _edit_axis_name() -> String:
+	match edit_section:
+		EDIT_SECTION_BODY:
+			match edit_axis:
+				BODY_AXIS_HEIGHT:
+					return "身長"
+				BODY_AXIS_HEAD:
+					return "頭"
+				BODY_AXIS_TORSO:
+					return "胴"
+				BODY_AXIS_LEGS:
+					return "脚"
+				BODY_AXIS_WIDTH:
+					return "横幅"
+				BODY_AXIS_DEPTH:
+					return "厚み"
+		EDIT_SECTION_FACE:
+			match edit_axis:
+				FACE_AXIS_EYE_SPACING:
+					return "目の間隔"
+				FACE_AXIS_EYE_HEIGHT:
+					return "目の高さ"
+				FACE_AXIS_EYE_SIZE:
+					return "目の大きさ"
+				FACE_AXIS_MOUTH_WIDTH:
+					return "口の幅"
+				FACE_AXIS_MOUTH_HEIGHT:
+					return "口の高さ"
+		EDIT_SECTION_HAIR:
+			match edit_axis:
+				HAIR_AXIS_STYLE:
+					return "髪型"
+				HAIR_AXIS_COLOR:
+					return "髪色"
+				HAIR_AXIS_VOLUME:
+					return "髪の量"
+		EDIT_SECTION_CLOTHES:
+			match edit_axis:
+				CLOTHES_AXIS_STYLE:
+					return "服の種類"
+				CLOTHES_AXIS_COLOR:
+					return "服の色"
+				CLOTHES_AXIS_SKIN:
+					return "肌の色"
+	return "項目"
+
+
+func _edit_axis_value(profile: Dictionary) -> float:
+	match edit_section:
+		EDIT_SECTION_BODY:
+			match edit_axis:
+				BODY_AXIS_HEIGHT:
+					return float(profile.get("height", DEFAULT_HEIGHT))
+				BODY_AXIS_HEAD:
+					return float(profile.get("head_ratio", 0.24))
+				BODY_AXIS_TORSO:
+					return float(profile.get("torso_ratio", 0.50))
+				BODY_AXIS_LEGS:
+					return float(profile.get("leg_bias", 0.0))
+				BODY_AXIS_WIDTH:
+					return float(profile.get("shoulder_scale", 1.0))
+				BODY_AXIS_DEPTH:
+					return float(profile.get("body_depth_scale", 1.0))
+		EDIT_SECTION_FACE:
+			match edit_axis:
+				FACE_AXIS_EYE_SPACING:
+					return float(profile.get("eye_spacing", 0.40))
+				FACE_AXIS_EYE_HEIGHT:
+					return float(profile.get("eye_height", 0.04))
+				FACE_AXIS_EYE_SIZE:
+					return float(profile.get("eye_size", 0.052))
+				FACE_AXIS_MOUTH_WIDTH:
+					return float(profile.get("mouth_width", 0.24))
+				FACE_AXIS_MOUTH_HEIGHT:
+					return float(profile.get("mouth_y", -0.20))
+		EDIT_SECTION_HAIR:
+			match edit_axis:
+				HAIR_AXIS_STYLE:
+					return float(profile.get("hair_style", 0))
+				HAIR_AXIS_COLOR:
+					return float(profile.get("hair_color_index", 0))
+				HAIR_AXIS_VOLUME:
+					return float(profile.get("hair_volume", 1.0))
+		EDIT_SECTION_CLOTHES:
+			match edit_axis:
+				CLOTHES_AXIS_STYLE:
+					return float(OUTFIT_ORDER.find(String(profile.get("outfit_type", "casual"))))
+				CLOTHES_AXIS_COLOR:
+					return float(profile.get("cloth_color_index", 0))
+				CLOTHES_AXIS_SKIN:
+					return float(profile.get("skin_color_index", 0))
 	return 0.0
+
+
+func _state_label(state: String) -> String:
+	match state:
+		"selected":
+			return "操作中"
+		"idle":
+			return "待機"
+		"wander":
+			return "散歩"
+		"meet":
+			return "近づく"
+		"chat":
+			return "会話"
+		"manual":
+			return "移動中"
+		"fight":
+			return "けんか"
+		"visit":
+			return "訪問"
+	return "待機"
+
+
+func _record_event(message: String) -> void:
+	event_log = message
+
+
+func _refresh_resident_markers(index: int) -> void:
+	var resident: Dictionary = residents[index]
+	var state := String(resident.get("state", "idle"))
+	_set_chat_marker(index, state == "chat")
+	var profile: Dictionary = resident["profile"]
+	var problem: Dictionary = profile.get("current_problem", {})
+	_set_problem_marker(index, not problem.is_empty())
 
 
 func _set_chat_marker(index: int, enabled: bool) -> void:
@@ -1015,14 +1943,33 @@ func _set_chat_marker(index: int, enabled: bool) -> void:
 	node.add_child(marker)
 
 
-func _add_avatar_part(parent: Node3D, part_name: String, mesh: Mesh, local_position: Vector3, color: Color, rotation_deg := Vector3.ZERO) -> void:
-	var instance := MeshInstance3D.new()
-	instance.name = part_name
-	instance.mesh = mesh
-	instance.position = local_position
-	instance.rotation_degrees = rotation_deg
-	instance.material_override = _material(color)
-	parent.add_child(instance)
+func _set_problem_marker(index: int, enabled: bool) -> void:
+	if index < 0 or index >= residents.size():
+		return
+
+	var resident: Dictionary = residents[index]
+	var node: Node3D = resident["node"] as Node3D
+	var existing := node.get_node_or_null("Problem Marker")
+	if existing != null:
+		existing.queue_free()
+
+	if not enabled:
+		return
+
+	var profile: Dictionary = resident["profile"]
+	var problem: Dictionary = profile.get("current_problem", {})
+	var color := Color(0.95, 0.36, 0.24)
+	if String(problem.get("category", "")) == "height":
+		color = Color(0.44, 0.66, 0.95)
+	elif String(problem.get("category", "")) == "relationship":
+		color = Color(0.90, 0.52, 0.82)
+
+	var marker := MeshInstance3D.new()
+	marker.name = "Problem Marker"
+	marker.mesh = _sphere_mesh(0.095)
+	marker.position = Vector3(0.0, float(profile.get("height", DEFAULT_HEIGHT)) + 0.40, 0.0)
+	marker.material_override = _material(color)
+	node.add_child(marker)
 
 
 func _add_box(node_name: String, size: Vector3, position: Vector3, color: Color, transparent := false) -> MeshInstance3D:
@@ -1063,15 +2010,6 @@ func _sphere_mesh(radius: float) -> SphereMesh:
 	mesh.height = radius * 2.0
 	mesh.radial_segments = 24
 	mesh.rings = 12
-	return mesh
-
-
-func _capsule_mesh(height: float, radius: float) -> CapsuleMesh:
-	var mesh := CapsuleMesh.new()
-	mesh.radius = radius
-	mesh.height = maxf(height, radius * 2.2)
-	mesh.radial_segments = 18
-	mesh.rings = 8
 	return mesh
 
 
