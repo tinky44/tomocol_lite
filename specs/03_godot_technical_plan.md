@@ -31,6 +31,8 @@ tools/
 
 必須要素:
 
+- 島と複数の家
+- 家の外から室内への出入り
 - 普通体型向けの部屋
 - 2.0mのドア
 - 2.4m前後の天井
@@ -38,7 +40,8 @@ tools/
 - 可変身長の複数住人
 - 簡易的な顔パーツと体型編集
 - 自律的な住人交流
-- 固定寄りの3Dカメラ
+- 正面寄りの3Dカメラ
+- カメラ相対の直感的な移動
 
 ## Implementation Style
 
@@ -56,9 +59,10 @@ tools/
    - 現在の最小プロトタイプ
    - 立ち姿と家具比較だけを見る
 
-2. Walkable Room
+2. Walkable Island and Room
    - 選択中の住人をキーボードで少し動かす
    - 身長、頭身、肩幅をキー入力で調整する
+   - 島から家の中へ入る
    - ドア前や家具前で姿勢を変える
 
 3. Daily Actions
@@ -73,7 +77,7 @@ tools/
    - 頼みごと
 
 5. Multi-Room Life
-   - 部屋、廊下、教室などを切り替える
+   - 島、家、部屋、廊下、教室などを切り替える
 
 ## Local Run Wrapper
 
@@ -85,4 +89,3 @@ Godot は `user://logs` や editor 設定をユーザーディレクトリへ書
 - `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP` を `artifacts/godot-runtime` 配下に一時変更する
 - `--log-file` を明示する
 - `-Headless -Quit` でプロジェクト読み込みだけを検証できる
-

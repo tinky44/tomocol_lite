@@ -4,17 +4,33 @@ const ROOM_WIDTH := 5.0
 const ROOM_DEPTH := 4.0
 const ROOM_HEIGHT := 2.4
 
+const ISLAND_RADIUS_X := 4.25
+const ISLAND_RADIUS_Z := 3.05
+
 const DEFAULT_HEIGHT := 1.60
 const DEFAULT_DOOR_HEIGHT := 2.00
 const HEIGHT_MIN := 1.35
 const HEIGHT_MAX := 2.60
 
+const HOUSE_ENTRY_POINT := Vector3(0.0, 0.0, -0.82)
+const ROOM_EXIT_POINT := Vector3(1.45, 0.0, -1.43)
+
 var residents: Array[Dictionary] = []
 var selected_index := 0
+var current_place := "island"
 var selection_marker: MeshInstance3D
 var resident_label: Label
 var input_cooldown := 0.0
 var rng := RandomNumberGenerator.new()
+
+var build_root: Node3D
+var island_root: Node3D
+var room_root: Node3D
+var camera: Camera3D
+var camera_yaw := 0.0
+var camera_distance := 7.2
+var camera_height := 3.2
+var camera_size := 7.0
 
 
 func _ready() -> void:
@@ -27,21 +43,57 @@ func _process(delta: float) -> void:
 		return
 
 	input_cooldown = maxf(input_cooldown - delta, 0.0)
+	_handle_camera_input(delta)
 	var selected_moved := _handle_player_input(delta)
 	_update_residents(delta, selected_moved)
 	_update_selection_marker()
 	_update_hud()
+	_update_camera()
 
 
 func _build_world() -> void:
 	_add_lights()
 	_add_camera()
+
+	island_root = Node3D.new()
+	island_root.name = "Island"
+	add_child(island_root)
+	build_root = island_root
+	_add_island()
+
+	room_root = Node3D.new()
+	room_root.name = "House Interior"
+	add_child(room_root)
+	build_root = room_root
 	_add_room()
 	_add_furniture()
 	_add_scale_guides()
+	room_root.visible = false
+
+	build_root = null
 	_add_residents()
 	_add_selection_marker()
 	_add_hud()
+	_update_camera()
+
+
+func _handle_camera_input(delta: float) -> void:
+	if Input.is_key_pressed(KEY_J):
+		camera_yaw -= 1.15 * delta
+	if Input.is_key_pressed(KEY_L):
+		camera_yaw += 1.15 * delta
+	if Input.is_key_pressed(KEY_I):
+		camera_height = clampf(camera_height + 1.8 * delta, 1.6, 6.0)
+	if Input.is_key_pressed(KEY_K):
+		camera_height = clampf(camera_height - 1.8 * delta, 1.6, 6.0)
+	if Input.is_key_pressed(KEY_MINUS):
+		camera_size = clampf(camera_size + 2.5 * delta, 4.4, 9.0)
+	if Input.is_key_pressed(KEY_EQUAL):
+		camera_size = clampf(camera_size - 2.5 * delta, 4.4, 9.0)
+	if Input.is_key_pressed(KEY_HOME):
+		camera_yaw = 0.0
+		camera_height = 2.7 if current_place == "room" else 3.2
+		camera_size = 5.6 if current_place == "room" else 7.0
 
 
 func _handle_player_input(delta: float) -> bool:
@@ -52,6 +104,10 @@ func _handle_player_input(delta: float) -> bool:
 		elif Input.is_key_pressed(KEY_E):
 			_select_resident(1)
 			input_cooldown = 0.18
+		elif Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE):
+			if _try_place_transition():
+				input_cooldown = 0.35
+				return true
 
 	if Input.is_key_pressed(KEY_Z):
 		_adjust_selected_profile("height", -0.46 * delta, HEIGHT_MIN, HEIGHT_MAX)
@@ -70,31 +126,105 @@ func _handle_player_input(delta: float) -> bool:
 	if Input.is_key_pressed(KEY_T):
 		_adjust_selected_profile("shoulder_scale", 0.25 * delta, 0.72, 1.35)
 
-	var input := Vector3.ZERO
+	var input := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 		input.x -= 1.0
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		input.x += 1.0
 	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
-		input.z -= 1.0
+		input.y += 1.0
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
-		input.z += 1.0
+		input.y -= 1.0
 
 	if input.length() <= 0.0:
 		return false
 
-	input = input.normalized()
+	var move_direction := _screen_input_to_world(input.normalized())
 	_break_partner(selected_index)
 
 	var resident: Dictionary = residents[selected_index]
 	var node: Node3D = resident["node"] as Node3D
-	node.position = _clamp_room_position(node.position + input * 1.45 * delta)
-	_face_position(node, node.global_position + input)
+	node.position = _clamp_current_position(node.position + move_direction * 1.45 * delta)
+	_face_position(node, node.global_position + move_direction)
 	resident["state"] = "manual"
 	resident["timer"] = 1.0
 	resident["target"] = node.position
 	residents[selected_index] = resident
 	return true
+
+
+func _screen_input_to_world(input: Vector2) -> Vector3:
+	var right := Vector3(cos(camera_yaw), 0.0, -sin(camera_yaw))
+	var forward := Vector3(-sin(camera_yaw), 0.0, -cos(camera_yaw))
+	return (right * input.x + forward * input.y).normalized()
+
+
+func _try_place_transition() -> bool:
+	var selected := residents[selected_index]
+	var node: Node3D = selected["node"] as Node3D
+	if current_place == "island":
+		if node.position.distance_to(HOUSE_ENTRY_POINT) <= 0.78:
+			_enter_house()
+			return true
+	else:
+		if node.position.distance_to(ROOM_EXIT_POINT) <= 0.78:
+			_exit_house()
+			return true
+	return false
+
+
+func _enter_house() -> void:
+	current_place = "room"
+	island_root.visible = false
+	room_root.visible = true
+	camera_yaw = 0.0
+	camera_height = 2.7
+	camera_size = 5.6
+	camera_distance = 6.0
+	_place_residents(_room_spawn_points())
+
+
+func _exit_house() -> void:
+	current_place = "island"
+	room_root.visible = false
+	island_root.visible = true
+	camera_yaw = 0.0
+	camera_height = 3.2
+	camera_size = 7.0
+	camera_distance = 7.2
+	_place_residents(_island_spawn_points())
+
+
+func _place_residents(spawn_points: Array[Vector3]) -> void:
+	for index in range(residents.size()):
+		var resident: Dictionary = residents[index]
+		var node: Node3D = resident["node"] as Node3D
+		node.position = spawn_points[index % spawn_points.size()]
+		node.rotation = Vector3.ZERO
+		resident["state"] = "idle"
+		resident["target"] = node.position
+		resident["timer"] = rng.randf_range(0.4, 1.6)
+		resident["partner"] = -1
+		residents[index] = resident
+		_set_chat_marker(index, false)
+
+
+func _island_spawn_points() -> Array[Vector3]:
+	return [
+		Vector3(-0.70, 0.0, 0.75),
+		Vector3(0.68, 0.0, 0.58),
+		Vector3(-1.46, 0.0, 0.02),
+		Vector3(1.42, 0.0, -0.08)
+	]
+
+
+func _room_spawn_points() -> Array[Vector3]:
+	return [
+		Vector3(1.20, 0.0, -1.18),
+		Vector3(-1.35, 0.0, 0.34),
+		Vector3(-0.45, 0.0, 1.12),
+		Vector3(1.62, 0.0, -0.30)
+	]
 
 
 func _select_resident(step: int) -> void:
@@ -227,8 +357,8 @@ func _start_meeting(a: int, b: int) -> void:
 	var b_profile: Dictionary = b_resident["profile"]
 	var spacing := 0.70 + absf(float(a_profile["height"]) - float(b_profile["height"])) * 0.12
 	var midpoint := (a_node.position + b_node.position) * 0.5
-	var a_target := _clamp_room_position(midpoint - direction * spacing * 0.5)
-	var b_target := _clamp_room_position(midpoint + direction * spacing * 0.5)
+	var a_target := _clamp_current_position(midpoint - direction * spacing * 0.5)
+	var b_target := _clamp_current_position(midpoint + direction * spacing * 0.5)
 
 	a_resident["state"] = "meet"
 	a_resident["partner"] = b
@@ -247,12 +377,27 @@ func _start_wander(index: int) -> void:
 	var resident: Dictionary = residents[index]
 	resident["state"] = "wander"
 	resident["partner"] = -1
-	resident["target"] = Vector3(
-		rng.randf_range(-ROOM_WIDTH * 0.38, ROOM_WIDTH * 0.36),
-		0.0,
-		rng.randf_range(-ROOM_DEPTH * 0.34, ROOM_DEPTH * 0.28)
-	)
+	resident["target"] = _random_wander_target()
 	residents[index] = resident
+
+
+func _random_wander_target() -> Vector3:
+	if current_place == "room":
+		return Vector3(
+			rng.randf_range(-ROOM_WIDTH * 0.38, ROOM_WIDTH * 0.36),
+			0.0,
+			rng.randf_range(-ROOM_DEPTH * 0.34, ROOM_DEPTH * 0.28)
+		)
+
+	for attempt in range(12):
+		var candidate := Vector3(
+			rng.randf_range(-ISLAND_RADIUS_X * 0.82, ISLAND_RADIUS_X * 0.82),
+			0.0,
+			rng.randf_range(-ISLAND_RADIUS_Z * 0.74, ISLAND_RADIUS_Z * 0.66)
+		)
+		if _is_inside_island(candidate):
+			return candidate
+	return Vector3.ZERO
 
 
 func _begin_chat_pair(a: int, b: int) -> void:
@@ -305,8 +450,9 @@ func _move_resident_toward(node: Node3D, target: Vector3, speed: float, delta: f
 		return true
 
 	var step := minf(speed * delta, distance)
-	node.position = _clamp_room_position(node.position + offset.normalized() * step)
-	_face_position(node, node.global_position + offset)
+	var movement := offset.normalized()
+	node.position = _clamp_current_position(node.position + movement * step)
+	_face_position(node, node.global_position + movement)
 	return distance <= 0.12
 
 
@@ -314,6 +460,13 @@ func _face_position(node: Node3D, target: Vector3) -> void:
 	var flat_target := Vector3(target.x, node.global_position.y, target.z)
 	if node.global_position.distance_to(flat_target) > 0.05:
 		node.look_at(flat_target, Vector3.UP)
+		node.rotate_y(PI)
+
+
+func _clamp_current_position(position: Vector3) -> Vector3:
+	if current_place == "room":
+		return _clamp_room_position(position)
+	return _clamp_island_position(position)
 
 
 func _clamp_room_position(position: Vector3) -> Vector3:
@@ -322,6 +475,22 @@ func _clamp_room_position(position: Vector3) -> Vector3:
 		0.0,
 		clampf(position.z, -ROOM_DEPTH * 0.39, ROOM_DEPTH * 0.34)
 	)
+
+
+func _clamp_island_position(position: Vector3) -> Vector3:
+	var x := position.x
+	var z := position.z
+	var normalized := Vector2(x / (ISLAND_RADIUS_X * 0.88), z / (ISLAND_RADIUS_Z * 0.78))
+	if normalized.length() > 1.0:
+		normalized = normalized.normalized()
+		x = normalized.x * ISLAND_RADIUS_X * 0.88
+		z = normalized.y * ISLAND_RADIUS_Z * 0.78
+	return Vector3(x, 0.0, z)
+
+
+func _is_inside_island(position: Vector3) -> bool:
+	var normalized := Vector2(position.x / (ISLAND_RADIUS_X * 0.88), position.z / (ISLAND_RADIUS_Z * 0.78))
+	return normalized.length() <= 1.0
 
 
 func _add_residents() -> void:
@@ -391,12 +560,7 @@ func _add_residents() -> void:
 			"hair_style": 0
 		}
 	]
-	var positions: Array[Vector3] = [
-		Vector3(0.92, 0.0, 0.10),
-		Vector3(-1.35, 0.0, 0.34),
-		Vector3(-0.45, 0.0, 1.12),
-		Vector3(1.62, 0.0, -0.72)
-	]
+	var positions := _island_spawn_points()
 
 	for index in range(profiles.size()):
 		var profile: Dictionary = profiles[index]
@@ -489,26 +653,62 @@ func _add_lights() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Soft Window Light"
 	sun.light_energy = 1.4
-	sun.rotation_degrees = Vector3(-42.0, -30.0, 0.0)
+	sun.rotation_degrees = Vector3(-42.0, -10.0, 0.0)
 	add_child(sun)
 
 	var room_light := OmniLight3D.new()
-	room_light.name = "Ceiling Light"
-	room_light.position = Vector3(0.0, ROOM_HEIGHT - 0.1, -0.25)
+	room_light.name = "Shared Soft Light"
+	room_light.position = Vector3(0.0, 3.8, 1.4)
 	room_light.light_energy = 2.2
-	room_light.omni_range = 5.5
+	room_light.omni_range = 8.5
 	add_child(room_light)
 
 
 func _add_camera() -> void:
-	var camera := Camera3D.new()
-	camera.name = "Dollhouse Camera"
+	camera = Camera3D.new()
+	camera.name = "Front Dollhouse Camera"
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 5.8
-	camera.position = Vector3(4.0, 2.8, 5.2)
 	camera.current = true
 	add_child(camera)
-	camera.look_at(Vector3(0.0, 1.08, 0.0), Vector3.UP)
+
+
+func _update_camera() -> void:
+	if camera == null:
+		return
+
+	var target := Vector3(0.0, 0.90, -0.25)
+	if current_place == "room":
+		target = Vector3(0.0, 1.04, -0.05)
+
+	var offset := Vector3(sin(camera_yaw) * camera_distance, camera_height, cos(camera_yaw) * camera_distance)
+	camera.position = target + offset
+	camera.size = camera_size
+	camera.look_at(target, Vector3.UP)
+
+
+func _add_island() -> void:
+	_add_box("Sea", Vector3(10.0, 0.05, 8.0), Vector3(0.0, -0.10, 0.0), Color(0.20, 0.48, 0.70))
+
+	var island := _add_cylinder("Oval Island", 1.0, 0.16, Vector3(0.0, -0.02, 0.0), Color(0.42, 0.68, 0.40))
+	island.scale = Vector3(ISLAND_RADIUS_X, 1.0, ISLAND_RADIUS_Z)
+
+	_add_box("Front Dock", Vector3(0.95, 0.08, 0.90), Vector3(0.0, 0.04, 2.42), Color(0.62, 0.46, 0.28))
+	_add_box("Main Path", Vector3(0.42, 0.035, 3.20), Vector3(0.0, 0.075, 0.50), Color(0.78, 0.70, 0.52))
+	_add_box("Cross Path", Vector3(4.50, 0.035, 0.38), Vector3(0.0, 0.08, -0.25), Color(0.78, 0.70, 0.52))
+	_add_box("Home Door Mat", Vector3(0.72, 0.032, 0.46), HOUSE_ENTRY_POINT + Vector3(0.0, 0.035, 0.0), Color(0.88, 0.62, 0.28))
+
+	_add_house("Center Home", Vector3(0.0, 0.0, -1.52), Color(0.86, 0.62, 0.48), Color(0.54, 0.20, 0.22), true)
+	_add_house("Left Home", Vector3(-2.25, 0.0, -0.92), Color(0.52, 0.70, 0.82), Color(0.24, 0.28, 0.50), false)
+	_add_house("Right Home", Vector3(2.24, 0.0, -0.74), Color(0.82, 0.72, 0.45), Color(0.45, 0.25, 0.12), false)
+
+
+func _add_house(label: String, base_position: Vector3, wall_color: Color, roof_color: Color, active: bool) -> void:
+	var size_scale := 1.10 if active else 0.86
+	_add_box(label + " Body", Vector3(1.28, 1.02, 0.82) * size_scale, base_position + Vector3(0.0, 0.51 * size_scale, 0.0), wall_color)
+	_add_box(label + " Roof", Vector3(1.56, 0.32, 1.00) * size_scale, base_position + Vector3(0.0, 1.12 * size_scale, 0.0), roof_color)
+	_add_box(label + " Door", Vector3(0.34, 0.66, 0.035) * size_scale, base_position + Vector3(0.0, 0.35 * size_scale, 0.43 * size_scale), Color(0.36, 0.22, 0.15))
+	_add_box(label + " Left Window", Vector3(0.24, 0.24, 0.035) * size_scale, base_position + Vector3(-0.40 * size_scale, 0.61 * size_scale, 0.435 * size_scale), Color(0.85, 0.94, 1.00))
+	_add_box(label + " Right Window", Vector3(0.24, 0.24, 0.035) * size_scale, base_position + Vector3(0.40 * size_scale, 0.61 * size_scale, 0.435 * size_scale), Color(0.85, 0.94, 1.00))
 
 
 func _add_room() -> void:
@@ -522,6 +722,7 @@ func _add_room() -> void:
 	_add_box("Door Panel 2.0m", Vector3(0.86, DEFAULT_DOOR_HEIGHT, 0.04), Vector3(door_x, DEFAULT_DOOR_HEIGHT * 0.5, wall_z + 0.01), Color(0.62, 0.50, 0.38))
 	_add_box("Door Top Clearance", Vector3(1.02, 0.06, 0.08), Vector3(door_x, DEFAULT_DOOR_HEIGHT, wall_z + 0.035), Color(0.30, 0.24, 0.20))
 	_add_box("Door Handle", Vector3(0.06, 0.08, 0.08), Vector3(door_x - 0.32, 0.92, wall_z + 0.08), Color(0.95, 0.80, 0.36))
+	_add_box("Exit Mat", Vector3(0.80, 0.022, 0.42), ROOM_EXIT_POINT + Vector3(0.0, 0.030, 0.0), Color(0.82, 0.58, 0.34))
 
 
 func _add_furniture() -> void:
@@ -588,13 +789,22 @@ func _update_hud() -> void:
 
 	var resident: Dictionary = residents[selected_index]
 	var profile: Dictionary = resident["profile"]
-	resident_label.text = "%s\n%.2fm  head %.2f  torso %.2f  width %.2f\n%s" % [
+	var door_hint := ""
+	var node: Node3D = resident["node"] as Node3D
+	if current_place == "island" and node.position.distance_to(HOUSE_ENTRY_POINT) <= 0.78:
+		door_hint = "Enter/Space: enter home"
+	elif current_place == "room" and node.position.distance_to(ROOM_EXIT_POINT) <= 0.78:
+		door_hint = "Enter/Space: exit home"
+
+	resident_label.text = "%s  %s\n%.2fm  head %.2f  torso %.2f  width %.2f\n%s\n%s" % [
 		String(profile.get("name", "Resident")),
+		current_place,
 		float(profile.get("height", DEFAULT_HEIGHT)),
 		float(profile.get("head_ratio", 0.24)),
 		float(profile.get("torso_ratio", 0.34)),
 		float(profile.get("shoulder_scale", 1.0)),
-		String(resident.get("state", "idle"))
+		String(resident.get("state", "idle")),
+		door_hint
 	]
 
 
@@ -636,7 +846,23 @@ func _add_box(node_name: String, size: Vector3, position: Vector3, color: Color,
 	instance.mesh = _box_mesh(size)
 	instance.position = position
 	instance.material_override = _material(color, transparent)
-	add_child(instance)
+	if build_root == null:
+		add_child(instance)
+	else:
+		build_root.add_child(instance)
+	return instance
+
+
+func _add_cylinder(node_name: String, radius: float, height: float, position: Vector3, color: Color) -> MeshInstance3D:
+	var instance := MeshInstance3D.new()
+	instance.name = node_name
+	instance.mesh = _cylinder_mesh(radius, height)
+	instance.position = position
+	instance.material_override = _material(color)
+	if build_root == null:
+		add_child(instance)
+	else:
+		build_root.add_child(instance)
 	return instance
 
 
@@ -661,6 +887,15 @@ func _capsule_mesh(height: float, radius: float) -> CapsuleMesh:
 	mesh.height = maxf(height, radius * 2.2)
 	mesh.radial_segments = 18
 	mesh.rings = 8
+	return mesh
+
+
+func _cylinder_mesh(radius: float, height: float) -> CylinderMesh:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 48
 	return mesh
 
 

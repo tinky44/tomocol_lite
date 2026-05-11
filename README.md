@@ -12,14 +12,19 @@
 
 ## Current Prototype
 
-`godot-project` は、家具・ドア・天井・複数住人をすべて単純な3Dプリミティブで描く小さな部屋です。
+`godot-project` は、島、家、室内、複数住人をすべて単純な3Dプリミティブで描く小さな生活箱庭です。
 
-まずは「住人作成の身長幅」と「普通の部屋にいるだけで体格差が見える」ことを確認するための基準シーンとして使います。住人は勝手に歩き、相手に近づき、会話状態に入ります。
+まずは「住人作成の身長幅」と「普通の島や部屋にいるだけで体格差が見える」ことを確認するための基準シーンとして使います。住人は勝手に歩き、相手に近づき、会話状態に入ります。中央の家の前で `Enter` / `Space` を押すと家に入れます。
 
 Prototype controls:
 
 - `Q` / `E`: selected resident
-- `WASD` or arrow keys: move selected resident
+- `WASD` or arrow keys: move selected resident relative to the camera
+- `Enter` / `Space`: enter or exit the home near a door mat
+- `J` / `L`: rotate camera view
+- `I` / `K`: raise/lower camera
+- `-` / `=`: zoom camera
+- `Home`: reset to front camera
 - `Z` / `X`: height
 - `C` / `V`: head size
 - `B` / `N`: torso length
