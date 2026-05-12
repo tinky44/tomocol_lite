@@ -24,7 +24,6 @@ const EDIT_SECTION_FACE := 1
 const EDIT_SECTION_HAIR := 2
 const EDIT_SECTION_CLOTHES := 3
 const EDIT_SECTION_COUNT := 4
-const CREATOR_CLICK_DELTA := 0.14
 
 const BODY_AXIS_HEIGHT := 0
 const BODY_AXIS_HEAD := 1
@@ -116,6 +115,10 @@ const SHOE_COLORS := [
 	Color(0.62, 0.22, 0.28)
 ]
 const HAIR_STYLE_LABELS := ["短め", "長め", "おだんご", "ポニーテール", "ボブ"]
+const HAIR_COLOR_LABELS := ["黒髪", "こげ茶", "栗色", "濃い黒", "赤みブラウン"]
+const CLOTH_COLOR_LABELS := ["青", "赤", "緑", "茶", "紺", "くすみ緑"]
+const SKIN_COLOR_LABELS := ["明るめ", "自然", "健康的", "褐色", "淡い"]
+const SHOE_COLOR_LABELS := ["黒", "茶", "生成り", "紺", "赤茶"]
 const OUTFIT_LABELS := {
 	"casual": "普段着",
 	"skirt": "スカート服",
@@ -165,8 +168,10 @@ var creator_canvas: CanvasLayer
 var creator_title_label: Label
 var creator_name_edit: LineEdit
 var creator_value_label: Label
+var creator_value_slider: HSlider
 var creator_section_buttons: Array = []
 var creator_axis_buttons: Array = []
+var refreshing_creator_slider := false
 
 
 func _ready() -> void:
@@ -266,7 +271,11 @@ func _handle_camera_input(delta: float) -> void:
 
 func _handle_player_input(delta: float) -> bool:
 	if input_cooldown <= 0.0:
-		if Input.is_key_pressed(KEY_F):
+		if Input.is_key_pressed(KEY_N):
+			_add_new_resident(true)
+			input_cooldown = 0.30
+			return true
+		elif Input.is_key_pressed(KEY_F):
 			_enter_creator()
 			input_cooldown = 0.20
 			return true
@@ -1197,6 +1206,84 @@ func _add_residents() -> void:
 	_save_residents()
 
 
+func _add_new_resident(open_creator := true) -> void:
+	var was_creator := creator_mode
+	if was_creator:
+		_exit_creator()
+
+	if not residents.is_empty():
+		_release_selected_resident(selected_index)
+
+	var new_index := residents.size()
+	var profile := _new_resident_profile(new_index)
+	var node := _create_resident(profile)
+	node.position = _new_resident_spawn_position(new_index)
+	node.scale = Vector3.ONE * (ISLAND_RESIDENT_SCALE if current_place == "island" else HOUSE_RESIDENT_SCALE)
+	node.visible = current_place == "island"
+	add_child(node)
+
+	residents.append({
+		"node": node,
+		"profile": profile,
+		"state": "idle",
+		"target": node.position,
+		"timer": rng.randf_range(0.4, 1.8),
+		"partner": -1,
+		"speed": rng.randf_range(0.58, 0.86),
+		"problem_timer": rng.randf_range(5.0, 13.0)
+	})
+
+	selected_index = new_index
+	_ensure_all_relationships()
+	if current_place == "room":
+		_place_single_resident_in_room(selected_index)
+	else:
+		_hold_selected_resident()
+		_refresh_resident_markers(selected_index)
+
+	_save_residents()
+	_record_event("%s が島に加わった。" % String(profile.get("name", "Resident")))
+	_update_selection_marker()
+	_update_hud()
+	_update_camera()
+
+	if open_creator:
+		_enter_creator()
+
+
+func _new_resident_profile(index: int) -> Dictionary:
+	var defaults := _default_profiles()
+	var profile: Dictionary = defaults[index % defaults.size()].duplicate(true)
+	profile["name"] = _unique_resident_name(String(profile.get("name", "Resident")))
+	profile["relationships"] = {}
+	profile["inventory"] = {}
+	profile["current_problem"] = {}
+	return _ensure_profile_defaults(profile, index)
+
+
+func _unique_resident_name(base_name: String) -> String:
+	var used_names := {}
+	for resident in residents:
+		var profile: Dictionary = resident["profile"]
+		used_names[String(profile.get("name", "Resident"))] = true
+
+	if not used_names.has(base_name):
+		return base_name
+
+	var suffix := 2
+	while used_names.has("%s %d" % [base_name, suffix]):
+		suffix += 1
+	return "%s %d" % [base_name, suffix]
+
+
+func _new_resident_spawn_position(index: int) -> Vector3:
+	var positions := _island_spawn_points()
+	var base_position := positions[index % positions.size()]
+	var lap := float(index / positions.size())
+	var offset := Vector3(lap * 0.26, 0.0, lap * 0.18)
+	return _clamp_island_position(base_position + offset)
+
+
 func _create_resident(profile: Dictionary) -> Node3D:
 	var avatar: Node3D = ResidentAvatarScript.new()
 	avatar.name = String(profile.get("name", "Resident"))
@@ -1227,8 +1314,8 @@ func _load_profiles() -> Array[Dictionary]:
 
 	if profiles.is_empty():
 		profiles = _default_profiles()
-	if profiles.size() > STARTING_RESIDENT_COUNT:
-		profiles.resize(STARTING_RESIDENT_COUNT)
+		if profiles.size() > STARTING_RESIDENT_COUNT:
+			profiles.resize(STARTING_RESIDENT_COUNT)
 
 	for index in range(profiles.size()):
 		profiles[index] = _ensure_profile_defaults(profiles[index], index)
@@ -1987,6 +2074,10 @@ func _add_creator_ui() -> void:
 	creator_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(creator_title_label)
 
+	var new_button := _creator_button("新規")
+	new_button.pressed.connect(Callable(self, "_on_creator_new_resident_pressed"))
+	header.add_child(new_button)
+
 	var done_button := _creator_button("完了")
 	done_button.pressed.connect(Callable(self, "_exit_creator"))
 	header.add_child(done_button)
@@ -2034,19 +2125,11 @@ func _add_creator_ui() -> void:
 	creator_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(creator_value_label)
 
-	var adjust_box := HBoxContainer.new()
-	adjust_box.add_theme_constant_override("separation", 8)
-	vbox.add_child(adjust_box)
-
-	var minus_button := _creator_button("-")
-	minus_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	minus_button.pressed.connect(Callable(self, "_on_creator_adjust_pressed").bind(-1))
-	adjust_box.add_child(minus_button)
-
-	var plus_button := _creator_button("+")
-	plus_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plus_button.pressed.connect(Callable(self, "_on_creator_adjust_pressed").bind(1))
-	adjust_box.add_child(plus_button)
+	creator_value_slider = HSlider.new()
+	creator_value_slider.custom_minimum_size = Vector2(0.0, 34.0)
+	creator_value_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	creator_value_slider.value_changed.connect(Callable(self, "_on_creator_slider_value_changed"))
+	vbox.add_child(creator_value_slider)
 
 
 func _creator_button(text: String) -> Button:
@@ -2087,6 +2170,83 @@ func _refresh_creator_ui() -> void:
 
 	if creator_value_label != null:
 		creator_value_label.text = "%s: %s" % [_creator_axis_name(edit_section, edit_axis), _creator_axis_value_text(profile)]
+	_refresh_creator_slider(profile)
+
+
+func _refresh_creator_slider(profile: Dictionary) -> void:
+	if creator_value_slider == null:
+		return
+
+	var config := _creator_axis_slider_config(edit_section, edit_axis)
+	var axis_count := _creator_axis_count(edit_section)
+	refreshing_creator_slider = true
+	creator_value_slider.visible = axis_count > 0
+	creator_value_slider.min_value = float(config.get("min", 0.0))
+	creator_value_slider.max_value = float(config.get("max", 1.0))
+	creator_value_slider.step = float(config.get("step", 0.01))
+	creator_value_slider.tick_count = int(config.get("ticks", 0))
+	creator_value_slider.ticks_on_borders = bool(config.get("ticks_on_borders", true))
+	creator_value_slider.value = clampf(_edit_axis_value(profile), creator_value_slider.min_value, creator_value_slider.max_value)
+	refreshing_creator_slider = false
+
+
+func _creator_axis_slider_config(section: int, axis: int) -> Dictionary:
+	match section:
+		EDIT_SECTION_BODY:
+			match axis:
+				BODY_AXIS_HEIGHT:
+					return {"min": HEIGHT_MIN, "max": HEIGHT_MAX, "step": 0.01}
+				BODY_AXIS_HEAD:
+					return {"min": 0.18, "max": 0.30, "step": 0.005}
+				BODY_AXIS_TORSO:
+					return {"min": 0.44, "max": 0.56, "step": 0.005}
+				BODY_AXIS_LEGS:
+					return {"min": -0.08, "max": 0.08, "step": 0.005}
+				BODY_AXIS_WIDTH:
+					return {"min": 0.72, "max": 1.35, "step": 0.01}
+				BODY_AXIS_DEPTH:
+					return {"min": 0.70, "max": 1.35, "step": 0.01}
+		EDIT_SECTION_FACE:
+			match axis:
+				FACE_AXIS_EYE_SPACING:
+					return {"min": 0.28, "max": 0.58, "step": 0.01}
+				FACE_AXIS_EYE_HEIGHT:
+					return {"min": -0.06, "max": 0.12, "step": 0.005}
+				FACE_AXIS_EYE_SIZE:
+					return {"min": 0.038, "max": 0.080, "step": 0.001}
+				FACE_AXIS_MOUTH_WIDTH:
+					return {"min": 0.16, "max": 0.36, "step": 0.01}
+				FACE_AXIS_MOUTH_HEIGHT:
+					return {"min": -0.34, "max": -0.06, "step": 0.005}
+		EDIT_SECTION_HAIR:
+			match axis:
+				HAIR_AXIS_STYLE:
+					return _discrete_slider_config(HAIR_STYLE_LABELS.size())
+				HAIR_AXIS_COLOR:
+					return _discrete_slider_config(HAIR_COLORS.size())
+				HAIR_AXIS_VOLUME:
+					return {"min": 0.82, "max": 1.20, "step": 0.01}
+		EDIT_SECTION_CLOTHES:
+			match axis:
+				CLOTHES_AXIS_STYLE:
+					return _discrete_slider_config(OUTFIT_ORDER.size())
+				CLOTHES_AXIS_COLOR:
+					return _discrete_slider_config(CLOTH_COLORS.size())
+				CLOTHES_AXIS_SKIN:
+					return _discrete_slider_config(SKIN_COLORS.size())
+				CLOTHES_AXIS_SHOES:
+					return _discrete_slider_config(SHOE_COLORS.size())
+	return {"min": 0.0, "max": 1.0, "step": 0.01}
+
+
+func _discrete_slider_config(count: int) -> Dictionary:
+	return {
+		"min": 0.0,
+		"max": float(maxi(count - 1, 0)),
+		"step": 1.0,
+		"ticks": count,
+		"ticks_on_borders": true
+	}
 
 
 func _creator_axis_count(section: int) -> int:
@@ -2146,9 +2306,9 @@ func _creator_axis_value_text(profile: Dictionary) -> String:
 		EDIT_SECTION_HAIR:
 			match edit_axis:
 				HAIR_AXIS_STYLE:
-					return HAIR_STYLE_LABELS[int(profile.get("hair_style", 0))]
+					return _label_from_array(HAIR_STYLE_LABELS, int(profile.get("hair_style", 0)))
 				HAIR_AXIS_COLOR:
-					return "色 %d" % (int(profile.get("hair_color_index", 0)) + 1)
+					return _label_from_array(HAIR_COLOR_LABELS, int(profile.get("hair_color_index", 0)))
 				HAIR_AXIS_VOLUME:
 					return "%.2f" % float(profile.get("hair_volume", 1.0))
 		EDIT_SECTION_CLOTHES:
@@ -2157,12 +2317,18 @@ func _creator_axis_value_text(profile: Dictionary) -> String:
 					var outfit := String(profile.get("outfit_type", "casual"))
 					return String(OUTFIT_LABELS.get(outfit, outfit))
 				CLOTHES_AXIS_COLOR:
-					return "色 %d" % (int(profile.get("cloth_color_index", 0)) + 1)
+					return _label_from_array(CLOTH_COLOR_LABELS, int(profile.get("cloth_color_index", 0)))
 				CLOTHES_AXIS_SKIN:
-					return "色 %d" % (int(profile.get("skin_color_index", 0)) + 1)
+					return _label_from_array(SKIN_COLOR_LABELS, int(profile.get("skin_color_index", 0)))
 				CLOTHES_AXIS_SHOES:
-					return "色 %d" % (int(profile.get("shoe_color_index", 0)) + 1)
+					return _label_from_array(SHOE_COLOR_LABELS, int(profile.get("shoe_color_index", 0)))
 	return ""
+
+
+func _label_from_array(labels: Array, index: int) -> String:
+	if labels.is_empty():
+		return ""
+	return String(labels[_wrap_index(index, labels.size())])
 
 
 func _on_creator_section_pressed(section: int) -> void:
@@ -2178,19 +2344,113 @@ func _on_creator_axis_pressed(axis: int) -> void:
 	_refresh_creator_ui()
 
 
-func _on_creator_adjust_pressed(direction: int) -> void:
+func _on_creator_new_resident_pressed() -> void:
+	_add_new_resident(true)
+
+
+func _on_creator_slider_value_changed(value: float) -> void:
+	if refreshing_creator_slider:
+		return
+	if _set_creator_axis_value(value):
+		_refresh_creator_ui()
+
+
+func _set_creator_axis_value(value: float) -> bool:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
 	var changed := false
+
 	match edit_section:
 		EDIT_SECTION_BODY:
-			changed = _adjust_body_value(float(direction), CREATOR_CLICK_DELTA)
+			match edit_axis:
+				BODY_AXIS_HEIGHT:
+					changed = _set_profile_float(profile, "height", value, HEIGHT_MIN, HEIGHT_MAX)
+				BODY_AXIS_HEAD:
+					changed = _set_profile_float(profile, "head_ratio", value, 0.18, 0.30)
+				BODY_AXIS_TORSO:
+					changed = _set_profile_float(profile, "torso_ratio", value, 0.44, 0.56)
+				BODY_AXIS_LEGS:
+					changed = _set_profile_float(profile, "leg_bias", value, -0.08, 0.08)
+				BODY_AXIS_WIDTH:
+					changed = _set_profile_float(profile, "shoulder_scale", value, 0.72, 1.35)
+				BODY_AXIS_DEPTH:
+					changed = _set_profile_float(profile, "body_depth_scale", value, 0.70, 1.35)
 		EDIT_SECTION_FACE:
-			changed = _adjust_face_value(float(direction), CREATOR_CLICK_DELTA)
+			match edit_axis:
+				FACE_AXIS_EYE_SPACING:
+					changed = _set_profile_float(profile, "eye_spacing", value, 0.28, 0.58)
+				FACE_AXIS_EYE_HEIGHT:
+					changed = _set_profile_float(profile, "eye_height", value, -0.06, 0.12)
+				FACE_AXIS_EYE_SIZE:
+					changed = _set_profile_float(profile, "eye_size", value, 0.038, 0.080)
+				FACE_AXIS_MOUTH_WIDTH:
+					changed = _set_profile_float(profile, "mouth_width", value, 0.16, 0.36)
+				FACE_AXIS_MOUTH_HEIGHT:
+					changed = _set_profile_float(profile, "mouth_y", value, -0.34, -0.06)
 		EDIT_SECTION_HAIR:
-			changed = _adjust_hair_value(float(direction), CREATOR_CLICK_DELTA)
+			match edit_axis:
+				HAIR_AXIS_STYLE:
+					changed = _set_profile_int(profile, "hair_style", roundi(value), HAIR_STYLE_LABELS.size())
+				HAIR_AXIS_COLOR:
+					var next_hair_color := _wrap_index(roundi(value), HAIR_COLORS.size())
+					if int(profile.get("hair_color_index", 0)) != next_hair_color:
+						profile["hair_color_index"] = next_hair_color
+						profile["hair_color"] = HAIR_COLORS[next_hair_color]
+						changed = true
+				HAIR_AXIS_VOLUME:
+					changed = _set_profile_float(profile, "hair_volume", value, 0.82, 1.20)
 		EDIT_SECTION_CLOTHES:
-			changed = _adjust_clothes_value(float(direction), CREATOR_CLICK_DELTA)
-	if changed:
-		_refresh_creator_ui()
+			match edit_axis:
+				CLOTHES_AXIS_STYLE:
+					var next_outfit_index := _wrap_index(roundi(value), OUTFIT_ORDER.size())
+					var next_outfit := String(OUTFIT_ORDER[next_outfit_index])
+					if String(profile.get("outfit_type", "casual")) != next_outfit:
+						profile["outfit_type"] = next_outfit
+						changed = true
+				CLOTHES_AXIS_COLOR:
+					var next_cloth_color := _wrap_index(roundi(value), CLOTH_COLORS.size())
+					if int(profile.get("cloth_color_index", 0)) != next_cloth_color:
+						profile["cloth_color_index"] = next_cloth_color
+						profile["cloth_color"] = CLOTH_COLORS[next_cloth_color]
+						changed = true
+				CLOTHES_AXIS_SKIN:
+					var next_skin_color := _wrap_index(roundi(value), SKIN_COLORS.size())
+					if int(profile.get("skin_color_index", 0)) != next_skin_color:
+						profile["skin_color_index"] = next_skin_color
+						profile["skin_color"] = SKIN_COLORS[next_skin_color]
+						changed = true
+				CLOTHES_AXIS_SHOES:
+					var next_shoe_color := _wrap_index(roundi(value), SHOE_COLORS.size())
+					if int(profile.get("shoe_color_index", 0)) != next_shoe_color:
+						profile["shoe_color_index"] = next_shoe_color
+						profile["shoe_color"] = SHOE_COLORS[next_shoe_color]
+						changed = true
+
+	if not changed:
+		return false
+
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_rebuild_resident_avatar(selected_index)
+	_save_residents()
+	return true
+
+
+func _set_profile_float(profile: Dictionary, key: String, value: float, min_value: float, max_value: float) -> bool:
+	var old_value := float(profile.get(key, min_value))
+	var new_value := clampf(value, min_value, max_value)
+	if absf(new_value - old_value) < 0.0005:
+		return false
+	profile[key] = new_value
+	return true
+
+
+func _set_profile_int(profile: Dictionary, key: String, value: int, count: int) -> bool:
+	var new_value := _wrap_index(value, count)
+	if int(profile.get(key, 0)) == new_value:
+		return false
+	profile[key] = new_value
+	return true
 
 
 func _on_creator_name_changed(new_text: String) -> void:
@@ -2230,7 +2490,7 @@ func _update_hud() -> void:
 	var gift_item := _current_gift_item()
 	var gift_text := "%s / %s" % [String(GIFT_CATEGORY_LABELS.get(_current_gift_category(), "贈り物")), String(gift_item.get("name", "贈り物"))]
 
-	var edit_hint := "クリック/F: キャラメイク  T/U/Y: 贈り物"
+	var edit_hint := "クリック/F: キャラメイク  N: 新規住人  T/U/Y: 贈り物"
 	if edit_mode:
 		edit_hint = "キャラメイク中"
 
