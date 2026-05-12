@@ -36,6 +36,8 @@ const FACE_AXIS_EYE_HEIGHT := 1
 const FACE_AXIS_EYE_SIZE := 2
 const FACE_AXIS_MOUTH_WIDTH := 3
 const FACE_AXIS_MOUTH_HEIGHT := 4
+const FACE_AXIS_EYE_STYLE := 5
+const FACE_AXIS_MOUTH_STYLE := 6
 
 const HAIR_AXIS_STYLE := 0
 const HAIR_AXIS_COLOR := 1
@@ -114,6 +116,8 @@ const SHOE_COLORS := [
 	Color(0.62, 0.22, 0.28)
 ]
 const HAIR_STYLE_LABELS := ["短め", "長め", "おだんご", "ポニーテール", "ボブ"]
+const FACE_EYE_STYLE_LABELS := ["点目", "楕円目", "眠そう"]
+const FACE_MOUTH_STYLE_LABELS := ["にこ口", "まっすぐ", "小さい口"]
 const HAIR_COLOR_LABELS := ["黒髪", "こげ茶", "栗色", "濃い黒", "赤みブラウン"]
 const CLOTH_COLOR_LABELS := ["青", "赤", "緑", "茶", "紺", "くすみ緑"]
 const SKIN_COLOR_LABELS := ["明るめ", "自然", "健康的", "褐色", "淡い"]

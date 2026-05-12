@@ -66,8 +66,10 @@ static func default_profiles() -> Array[Dictionary]:
 			"eye_spacing": 0.42,
 			"eye_height": 0.05,
 			"eye_size": 0.055,
+			"eye_style": 0,
 			"mouth_width": 0.26,
 			"mouth_y": -0.22,
+			"mouth_style": 0,
 			"outfit_type": "skirt",
 			"personality": "おだやか",
 			"likes": {"food": "甘いもの", "clothes": "かわいい服", "furniture": "寝具", "tools": "採寸"},
@@ -94,8 +96,10 @@ static func default_profiles() -> Array[Dictionary]:
 			"eye_spacing": 0.38,
 			"eye_height": 0.02,
 			"eye_size": 0.052,
+			"eye_style": 1,
 			"mouth_width": 0.22,
 			"mouth_y": -0.20,
+			"mouth_style": 0,
 			"outfit_type": "casual",
 			"personality": "まじめ",
 			"likes": {"food": "米", "clothes": "落ち着いた服", "furniture": "椅子", "tools": "読書"},
@@ -122,8 +126,10 @@ static func default_profiles() -> Array[Dictionary]:
 			"eye_spacing": 0.46,
 			"eye_height": 0.07,
 			"eye_size": 0.062,
+			"eye_style": 0,
 			"mouth_width": 0.20,
 			"mouth_y": -0.18,
+			"mouth_style": 2,
 			"outfit_type": "room",
 			"personality": "好奇心つよめ",
 			"likes": {"food": "温かいもの", "clothes": "楽な服", "furniture": "棚", "tools": "観察"},
@@ -150,8 +156,10 @@ static func default_profiles() -> Array[Dictionary]:
 			"eye_spacing": 0.34,
 			"eye_height": 0.04,
 			"eye_size": 0.050,
+			"eye_style": 2,
 			"mouth_width": 0.28,
 			"mouth_y": -0.25,
+			"mouth_style": 1,
 			"outfit_type": "formal",
 			"personality": "元気",
 			"likes": {"food": "米", "clothes": "きれいな服", "furniture": "椅子", "tools": "読書"},
@@ -173,6 +181,8 @@ static func ensure_profile_defaults(profile: Dictionary, index: int) -> Dictiona
 	profile["head_ratio"] = clampf(float(profile.get("head_ratio", 0.24)), 0.18, 0.30)
 	profile["torso_ratio"] = clampf(float(profile.get("torso_ratio", 0.50)), 0.44, 0.56)
 	profile["leg_bias"] = clampf(float(profile.get("leg_bias", 0.0)), -0.08, 0.08)
+	profile["eye_style"] = wrap_index(int(profile.get("eye_style", 0)), GameDataScript.FACE_EYE_STYLE_LABELS.size())
+	profile["mouth_style"] = wrap_index(int(profile.get("mouth_style", 0)), GameDataScript.FACE_MOUTH_STYLE_LABELS.size())
 	profile["hair_style"] = wrap_index(int(profile.get("hair_style", 0)), GameDataScript.HAIR_STYLE_LABELS.size())
 	profile["hair_volume"] = clampf(float(profile.get("hair_volume", 1.0)), 0.82, 1.20)
 	profile["cloth_color_index"] = wrap_index(int(profile.get("cloth_color_index", 0)), GameDataScript.CLOTH_COLORS.size())

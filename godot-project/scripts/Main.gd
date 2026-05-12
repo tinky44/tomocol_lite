@@ -33,6 +33,8 @@ const FACE_AXIS_EYE_HEIGHT := GameDataScript.FACE_AXIS_EYE_HEIGHT
 const FACE_AXIS_EYE_SIZE := GameDataScript.FACE_AXIS_EYE_SIZE
 const FACE_AXIS_MOUTH_WIDTH := GameDataScript.FACE_AXIS_MOUTH_WIDTH
 const FACE_AXIS_MOUTH_HEIGHT := GameDataScript.FACE_AXIS_MOUTH_HEIGHT
+const FACE_AXIS_EYE_STYLE := GameDataScript.FACE_AXIS_EYE_STYLE
+const FACE_AXIS_MOUTH_STYLE := GameDataScript.FACE_AXIS_MOUTH_STYLE
 const HAIR_AXIS_STYLE := GameDataScript.HAIR_AXIS_STYLE
 const HAIR_AXIS_COLOR := GameDataScript.HAIR_AXIS_COLOR
 const HAIR_AXIS_VOLUME := GameDataScript.HAIR_AXIS_VOLUME
@@ -54,6 +56,8 @@ const HAIR_COLORS := GameDataScript.HAIR_COLORS
 const CLOTH_COLORS := GameDataScript.CLOTH_COLORS
 const SKIN_COLORS := GameDataScript.SKIN_COLORS
 const SHOE_COLORS := GameDataScript.SHOE_COLORS
+const FACE_EYE_STYLE_LABELS := GameDataScript.FACE_EYE_STYLE_LABELS
+const FACE_MOUTH_STYLE_LABELS := GameDataScript.FACE_MOUTH_STYLE_LABELS
 const HAIR_STYLE_LABELS := GameDataScript.HAIR_STYLE_LABELS
 const HAIR_COLOR_LABELS := GameDataScript.HAIR_COLOR_LABELS
 const CLOTH_COLOR_LABELS := GameDataScript.CLOTH_COLOR_LABELS
@@ -104,6 +108,7 @@ var refreshing_creator_slider := false
 func _ready() -> void:
 	rng.seed = 44021
 	_build_world()
+	_apply_dev_launch_args()
 
 
 func _process(delta: float) -> void:
@@ -173,6 +178,20 @@ func _build_world() -> void:
 	_add_selection_marker()
 	_add_hud()
 	_add_creator_ui()
+	_update_camera()
+
+
+func _apply_dev_launch_args() -> void:
+	var args := OS.get_cmdline_user_args()
+	if not args.has("--creator-capture"):
+		return
+
+	# スクショ・動画確認用。通常起動では通らず、UI と顔パーツの崩れを固定画面で確認できます。
+	selected_index = 0
+	_enter_creator()
+	edit_section = EDIT_SECTION_FACE
+	edit_axis = FACE_AXIS_EYE_SIZE
+	_refresh_creator_ui()
 	_update_camera()
 
 
@@ -274,6 +293,9 @@ func _handle_edit_axis_shortcuts() -> bool:
 	if Input.is_key_pressed(KEY_6):
 		edit_axis = 5
 		return true
+	if Input.is_key_pressed(KEY_7):
+		edit_axis = 6
+		return true
 	return false
 
 
@@ -311,6 +333,8 @@ func _handle_edit_input(delta: float) -> void:
 
 
 func _is_current_edit_discrete() -> bool:
+	if edit_section == EDIT_SECTION_FACE:
+		return edit_axis == FACE_AXIS_EYE_STYLE or edit_axis == FACE_AXIS_MOUTH_STYLE
 	if edit_section == EDIT_SECTION_HAIR:
 		return edit_axis == HAIR_AXIS_STYLE or edit_axis == HAIR_AXIS_COLOR
 	if edit_section == EDIT_SECTION_CLOTHES:
@@ -336,6 +360,8 @@ func _adjust_body_value(direction: float, delta: float) -> bool:
 
 
 func _adjust_face_value(direction: float, delta: float) -> bool:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
 	match edit_axis:
 		FACE_AXIS_EYE_SPACING:
 			return _adjust_selected_profile("eye_spacing", direction * 0.10 * delta, 0.28, 0.58)
@@ -347,7 +373,19 @@ func _adjust_face_value(direction: float, delta: float) -> bool:
 			return _adjust_selected_profile("mouth_width", direction * 0.10 * delta, 0.16, 0.36)
 		FACE_AXIS_MOUTH_HEIGHT:
 			return _adjust_selected_profile("mouth_y", direction * 0.10 * delta, -0.34, -0.06)
-	return false
+		FACE_AXIS_EYE_STYLE:
+			var old_eye_style := int(profile.get("eye_style", 0))
+			profile["eye_style"] = _wrap_index(old_eye_style + int(sign(direction)), FACE_EYE_STYLE_LABELS.size())
+		FACE_AXIS_MOUTH_STYLE:
+			var old_mouth_style := int(profile.get("mouth_style", 0))
+			profile["mouth_style"] = _wrap_index(old_mouth_style + int(sign(direction)), FACE_MOUTH_STYLE_LABELS.size())
+		_:
+			return false
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	_rebuild_resident_avatar(selected_index)
+	_save_residents()
+	return true
 
 
 func _adjust_hair_value(direction: float, delta: float) -> bool:
@@ -1750,9 +1788,12 @@ func _add_creator_ui() -> void:
 	creator_canvas.add_child(root)
 
 	var panel := PanelContainer.new()
-	panel.position = Vector2(24.0, 24.0)
-	panel.size = Vector2(304.0, 590.0)
-	panel.custom_minimum_size = Vector2(304.0, 590.0)
+	panel.anchor_bottom = 1.0
+	panel.offset_left = 24.0
+	panel.offset_top = 24.0
+	panel.offset_right = 328.0
+	panel.offset_bottom = -24.0
+	panel.custom_minimum_size = Vector2(304.0, 0.0)
 	root.add_child(panel)
 
 	var margin := MarginContainer.new()
@@ -1810,12 +1851,19 @@ func _add_creator_ui() -> void:
 	item_label.text = "項目"
 	vbox.add_child(item_label)
 
+	var axis_scroll := ScrollContainer.new()
+	axis_scroll.custom_minimum_size = Vector2(0.0, 152.0)
+	axis_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	axis_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(axis_scroll)
+
 	var axis_box := VBoxContainer.new()
 	axis_box.add_theme_constant_override("separation", 6)
-	vbox.add_child(axis_box)
+	axis_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	axis_scroll.add_child(axis_box)
 
 	creator_axis_buttons.clear()
-	for axis in range(6):
+	for axis in range(7):
 		var axis_button := _creator_button("")
 		axis_button.toggle_mode = true
 		axis_button.pressed.connect(Callable(self, "_on_creator_axis_pressed").bind(axis))
@@ -1919,6 +1967,10 @@ func _creator_axis_slider_config(section: int, axis: int) -> Dictionary:
 					return {"min": 0.16, "max": 0.36, "step": 0.01}
 				FACE_AXIS_MOUTH_HEIGHT:
 					return {"min": -0.34, "max": -0.06, "step": 0.005}
+				FACE_AXIS_EYE_STYLE:
+					return _discrete_slider_config(FACE_EYE_STYLE_LABELS.size())
+				FACE_AXIS_MOUTH_STYLE:
+					return _discrete_slider_config(FACE_MOUTH_STYLE_LABELS.size())
 		EDIT_SECTION_HAIR:
 			match axis:
 				HAIR_AXIS_STYLE:
@@ -1955,7 +2007,7 @@ func _creator_axis_count(section: int) -> int:
 		EDIT_SECTION_BODY:
 			return 6
 		EDIT_SECTION_FACE:
-			return 5
+			return 7
 		EDIT_SECTION_HAIR:
 			return 3
 		EDIT_SECTION_CLOTHES:
@@ -1968,7 +2020,7 @@ func _creator_axis_name(section: int, axis: int) -> String:
 		EDIT_SECTION_BODY:
 			return ["身長", "頭", "胴", "脚", "横幅", "厚み"][axis]
 		EDIT_SECTION_FACE:
-			return ["目の間隔", "目の高さ", "目の大きさ", "口の幅", "口の高さ"][axis]
+			return ["目の間隔", "目の高さ", "目の大きさ", "口の幅", "口の高さ", "目の形", "口の形"][axis]
 		EDIT_SECTION_HAIR:
 			return ["髪型", "髪色", "髪の量"][axis]
 		EDIT_SECTION_CLOTHES:
@@ -2004,6 +2056,10 @@ func _creator_axis_value_text(profile: Dictionary) -> String:
 					return "%.2f" % float(profile.get("mouth_width", 0.24))
 				FACE_AXIS_MOUTH_HEIGHT:
 					return "%.2f" % float(profile.get("mouth_y", -0.20))
+				FACE_AXIS_EYE_STYLE:
+					return _label_from_array(FACE_EYE_STYLE_LABELS, int(profile.get("eye_style", 0)))
+				FACE_AXIS_MOUTH_STYLE:
+					return _label_from_array(FACE_MOUTH_STYLE_LABELS, int(profile.get("mouth_style", 0)))
 		EDIT_SECTION_HAIR:
 			match edit_axis:
 				HAIR_AXIS_STYLE:
@@ -2088,6 +2144,10 @@ func _set_creator_axis_value(value: float) -> bool:
 					changed = _set_profile_float(profile, "mouth_width", value, 0.16, 0.36)
 				FACE_AXIS_MOUTH_HEIGHT:
 					changed = _set_profile_float(profile, "mouth_y", value, -0.34, -0.06)
+				FACE_AXIS_EYE_STYLE:
+					changed = _set_profile_int(profile, "eye_style", roundi(value), FACE_EYE_STYLE_LABELS.size())
+				FACE_AXIS_MOUTH_STYLE:
+					changed = _set_profile_int(profile, "mouth_style", roundi(value), FACE_MOUTH_STYLE_LABELS.size())
 		EDIT_SECTION_HAIR:
 			match edit_axis:
 				HAIR_AXIS_STYLE:
@@ -2256,6 +2316,10 @@ func _edit_axis_name() -> String:
 					return "口の幅"
 				FACE_AXIS_MOUTH_HEIGHT:
 					return "口の高さ"
+				FACE_AXIS_EYE_STYLE:
+					return "目の形"
+				FACE_AXIS_MOUTH_STYLE:
+					return "口の形"
 		EDIT_SECTION_HAIR:
 			match edit_axis:
 				HAIR_AXIS_STYLE:
@@ -2305,6 +2369,10 @@ func _edit_axis_value(profile: Dictionary) -> float:
 					return float(profile.get("mouth_width", 0.24))
 				FACE_AXIS_MOUTH_HEIGHT:
 					return float(profile.get("mouth_y", -0.20))
+				FACE_AXIS_EYE_STYLE:
+					return float(profile.get("eye_style", 0))
+				FACE_AXIS_MOUTH_STYLE:
+					return float(profile.get("mouth_style", 0))
 		EDIT_SECTION_HAIR:
 			match edit_axis:
 				HAIR_AXIS_STYLE:
