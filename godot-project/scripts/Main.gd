@@ -24,6 +24,7 @@ const EDIT_SECTION_FACE := 1
 const EDIT_SECTION_HAIR := 2
 const EDIT_SECTION_CLOTHES := 3
 const EDIT_SECTION_COUNT := 4
+const CREATOR_CLICK_DELTA := 0.14
 
 const BODY_AXIS_HEIGHT := 0
 const BODY_AXIS_HEAD := 1
@@ -141,6 +142,11 @@ var input_cooldown := 0.0
 var edit_mode := false
 var edit_section := EDIT_SECTION_BODY
 var edit_axis := 0
+var creator_mode := false
+var creator_return_position := Vector3.ZERO
+var creator_return_rotation := Vector3.ZERO
+var creator_return_scale := Vector3.ONE
+var creator_return_visible := true
 var gift_category_index := 0
 var gift_item_index := 0
 var event_log := "島の暮らしが始まった。"
@@ -149,11 +155,18 @@ var rng := RandomNumberGenerator.new()
 var build_root: Node3D
 var island_root: Node3D
 var room_root: Node3D
+var creator_root: Node3D
 var camera: Camera3D
 var camera_yaw := 0.0
 var camera_distance := 5.2
 var camera_height := 2.45
 var camera_size := 4.7
+var creator_canvas: CanvasLayer
+var creator_title_label: Label
+var creator_name_edit: LineEdit
+var creator_value_label: Label
+var creator_section_buttons: Array = []
+var creator_axis_buttons: Array = []
 
 
 func _ready() -> void:
@@ -166,6 +179,10 @@ func _process(delta: float) -> void:
 		return
 
 	input_cooldown = maxf(input_cooldown - delta, 0.0)
+	if creator_mode:
+		_update_camera()
+		return
+
 	_handle_camera_input(delta)
 	_handle_player_input(delta)
 	_update_residents(delta)
@@ -177,14 +194,19 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if residents.is_empty():
 		return
+	if creator_mode:
+		if event is InputEventKey:
+			var key_event := event as InputEventKey
+			if key_event.pressed and key_event.keycode == KEY_ESCAPE:
+				_exit_creator()
+				get_viewport().set_input_as_handled()
+		return
+
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
 			if _click_hits_selected_resident(mouse_event.position):
-				edit_mode = true
-				input_cooldown = 0.20
-				var profile: Dictionary = residents[selected_index]["profile"]
-				_record_event("%s の編集を始めた。" % String(profile.get("name", "Resident")))
+				_enter_creator()
 				get_viewport().set_input_as_handled()
 
 
@@ -207,10 +229,18 @@ func _build_world() -> void:
 	_add_scale_guides()
 	room_root.visible = false
 
+	creator_root = Node3D.new()
+	creator_root.name = "Character Creator"
+	add_child(creator_root)
+	build_root = creator_root
+	_add_creator_stage()
+	creator_root.visible = false
+
 	build_root = null
 	_add_residents()
 	_add_selection_marker()
 	_add_hud()
+	_add_creator_ui()
 	_update_camera()
 
 
@@ -237,8 +267,9 @@ func _handle_camera_input(delta: float) -> void:
 func _handle_player_input(delta: float) -> bool:
 	if input_cooldown <= 0.0:
 		if Input.is_key_pressed(KEY_F):
-			edit_mode = not edit_mode
+			_enter_creator()
 			input_cooldown = 0.20
+			return true
 		elif edit_mode and Input.is_key_pressed(KEY_R):
 			_cycle_edit_section()
 			input_cooldown = 0.18
@@ -468,6 +499,76 @@ func _screen_input_to_world(input: Vector2) -> Vector3:
 	var right := Vector3(cos(camera_yaw), 0.0, -sin(camera_yaw))
 	var forward := Vector3(-sin(camera_yaw), 0.0, -cos(camera_yaw))
 	return (right * input.x + forward * input.y).normalized()
+
+
+func _enter_creator() -> void:
+	if creator_mode:
+		return
+
+	var resident: Dictionary = residents[selected_index]
+	var node: Node3D = resident["node"] as Node3D
+	var profile: Dictionary = resident["profile"]
+	creator_return_position = node.position
+	creator_return_rotation = node.rotation
+	creator_return_scale = node.scale
+	creator_return_visible = node.visible
+
+	creator_mode = true
+	edit_mode = true
+	input_cooldown = 0.20
+	island_root.visible = false
+	room_root.visible = false
+	creator_root.visible = true
+	if resident_label != null:
+		resident_label.visible = false
+	if selection_marker != null:
+		selection_marker.visible = false
+	if creator_canvas != null:
+		creator_canvas.visible = true
+
+	for index in range(residents.size()):
+		var other_node: Node3D = residents[index]["node"] as Node3D
+		other_node.visible = index == selected_index
+
+	node.position = Vector3.ZERO
+	node.rotation = Vector3.ZERO
+	node.scale = Vector3.ONE * HOUSE_RESIDENT_SCALE
+	_set_problem_marker(selected_index, false)
+	_refresh_creator_ui()
+	_record_event("%s のキャラメイクを開いた。" % String(profile.get("name", "Resident")))
+
+
+func _exit_creator() -> void:
+	if not creator_mode:
+		return
+
+	var node: Node3D = residents[selected_index]["node"] as Node3D
+	creator_mode = false
+	edit_mode = false
+	creator_root.visible = false
+	if creator_canvas != null:
+		creator_canvas.visible = false
+	if resident_label != null:
+		resident_label.visible = true
+	if selection_marker != null:
+		selection_marker.visible = true
+
+	island_root.visible = current_place == "island"
+	room_root.visible = current_place == "room"
+	node.position = creator_return_position
+	node.rotation = creator_return_rotation
+	node.scale = creator_return_scale
+	node.visible = creator_return_visible
+	for index in range(residents.size()):
+		if index == selected_index:
+			continue
+		var other_node: Node3D = residents[index]["node"] as Node3D
+		other_node.visible = current_place == "island"
+
+	_refresh_resident_markers(selected_index)
+	_update_selection_marker()
+	_update_hud()
+	_update_camera()
 
 
 func _try_primary_action() -> bool:
@@ -1704,11 +1805,23 @@ func _distance_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
 func _update_camera() -> void:
 	if camera == null:
 		return
+	if creator_mode:
+		_update_creator_camera()
+		return
 
 	var target := _selected_camera_target()
 	var offset := Vector3(sin(camera_yaw) * camera_distance, camera_height, cos(camera_yaw) * camera_distance)
 	camera.position = target + offset
 	camera.size = camera_size
+	camera.look_at(target, Vector3.UP)
+
+
+func _update_creator_camera() -> void:
+	var profile: Dictionary = residents[selected_index]["profile"]
+	var height: float = float(profile.get("height", DEFAULT_HEIGHT))
+	var target := Vector3(0.0, clampf(height * 0.48, 0.75, 1.55), 0.0)
+	camera.position = target + Vector3(0.0, 0.0, 5.2)
+	camera.size = maxf(3.05, height * 1.28)
 	camera.look_at(target, Vector3.UP)
 
 
@@ -1723,6 +1836,15 @@ func _selected_camera_target() -> Vector3:
 	if current_place == "room":
 		return node.position + Vector3(0.0, clampf(visible_height * 0.56, 0.92, 1.72), -0.04)
 	return node.position + Vector3(0.0, clampf(visible_height * 0.70, 0.45, 1.16), -0.18)
+
+
+func _add_creator_stage() -> void:
+	_add_box("Creator Yellow Backdrop", Vector3(8.2, 4.8, 0.06), Vector3(0.0, 1.95, -0.72), Color(1.0, 0.84, 0.24))
+	_add_box("Creator Floor", Vector3(4.2, 0.05, 2.2), Vector3(0.0, -0.03, 0.18), Color(0.96, 0.73, 0.20))
+	_add_box("Creator Height Ruler", Vector3(0.035, 3.35, 0.04), Vector3(1.48, 1.68, -0.58), Color(0.72, 0.50, 0.08))
+	for i in range(1, 7):
+		var y := float(i) * 0.5
+		_add_box("Creator Height Tick %.1fm" % y, Vector3(0.22, 0.018, 0.045), Vector3(1.38, y, -0.54), Color(0.72, 0.50, 0.08))
 
 
 func _add_island() -> void:
@@ -1826,6 +1948,265 @@ func _add_hud() -> void:
 	_update_hud()
 
 
+func _add_creator_ui() -> void:
+	creator_canvas = CanvasLayer.new()
+	creator_canvas.name = "Character Creator UI"
+	creator_canvas.layer = 12
+	creator_canvas.visible = false
+	add_child(creator_canvas)
+
+	var root := Control.new()
+	root.name = "Creator UI Root"
+	root.anchor_right = 1.0
+	root.anchor_bottom = 1.0
+	creator_canvas.add_child(root)
+
+	var panel := PanelContainer.new()
+	panel.position = Vector2(24.0, 24.0)
+	panel.size = Vector2(304.0, 590.0)
+	panel.custom_minimum_size = Vector2(304.0, 590.0)
+	root.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	panel.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	margin.add_child(vbox)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	vbox.add_child(header)
+
+	creator_title_label = Label.new()
+	creator_title_label.text = "キャラメイク"
+	creator_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(creator_title_label)
+
+	var done_button := _creator_button("完了")
+	done_button.pressed.connect(Callable(self, "_exit_creator"))
+	header.add_child(done_button)
+
+	var name_label := Label.new()
+	name_label.text = "名前"
+	vbox.add_child(name_label)
+
+	creator_name_edit = LineEdit.new()
+	creator_name_edit.placeholder_text = "名前"
+	creator_name_edit.text_changed.connect(Callable(self, "_on_creator_name_changed"))
+	vbox.add_child(creator_name_edit)
+
+	var section_grid := GridContainer.new()
+	section_grid.columns = 2
+	section_grid.add_theme_constant_override("h_separation", 8)
+	section_grid.add_theme_constant_override("v_separation", 8)
+	vbox.add_child(section_grid)
+
+	creator_section_buttons.clear()
+	for section in range(EDIT_SECTION_COUNT):
+		var section_button := _creator_button(_edit_section_name(section))
+		section_button.toggle_mode = true
+		section_button.pressed.connect(Callable(self, "_on_creator_section_pressed").bind(section))
+		section_grid.add_child(section_button)
+		creator_section_buttons.append(section_button)
+
+	var item_label := Label.new()
+	item_label.text = "項目"
+	vbox.add_child(item_label)
+
+	var axis_box := VBoxContainer.new()
+	axis_box.add_theme_constant_override("separation", 6)
+	vbox.add_child(axis_box)
+
+	creator_axis_buttons.clear()
+	for axis in range(6):
+		var axis_button := _creator_button("")
+		axis_button.toggle_mode = true
+		axis_button.pressed.connect(Callable(self, "_on_creator_axis_pressed").bind(axis))
+		axis_box.add_child(axis_button)
+		creator_axis_buttons.append(axis_button)
+
+	creator_value_label = Label.new()
+	creator_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(creator_value_label)
+
+	var adjust_box := HBoxContainer.new()
+	adjust_box.add_theme_constant_override("separation", 8)
+	vbox.add_child(adjust_box)
+
+	var minus_button := _creator_button("-")
+	minus_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	minus_button.pressed.connect(Callable(self, "_on_creator_adjust_pressed").bind(-1))
+	adjust_box.add_child(minus_button)
+
+	var plus_button := _creator_button("+")
+	plus_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plus_button.pressed.connect(Callable(self, "_on_creator_adjust_pressed").bind(1))
+	adjust_box.add_child(plus_button)
+
+
+func _creator_button(text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(0.0, 38.0)
+	button.focus_mode = Control.FOCUS_NONE
+	return button
+
+
+func _refresh_creator_ui() -> void:
+	if creator_canvas == null or residents.is_empty():
+		return
+
+	var axis_count := _creator_axis_count(edit_section)
+	if axis_count > 0:
+		edit_axis = clampi(edit_axis, 0, axis_count - 1)
+
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	var name := String(profile.get("name", "Resident"))
+	if creator_title_label != null:
+		creator_title_label.text = "キャラメイク"
+	if creator_name_edit != null and not creator_name_edit.has_focus():
+		creator_name_edit.text = name
+
+	for section in range(creator_section_buttons.size()):
+		var button: Button = creator_section_buttons[section]
+		button.button_pressed = section == edit_section
+
+	for axis in range(creator_axis_buttons.size()):
+		var axis_button: Button = creator_axis_buttons[axis]
+		var visible := axis < axis_count
+		axis_button.visible = visible
+		if visible:
+			axis_button.text = _creator_axis_name(edit_section, axis)
+			axis_button.button_pressed = axis == edit_axis
+
+	if creator_value_label != null:
+		creator_value_label.text = "%s: %s" % [_creator_axis_name(edit_section, edit_axis), _creator_axis_value_text(profile)]
+
+
+func _creator_axis_count(section: int) -> int:
+	match section:
+		EDIT_SECTION_BODY:
+			return 6
+		EDIT_SECTION_FACE:
+			return 5
+		EDIT_SECTION_HAIR:
+			return 3
+		EDIT_SECTION_CLOTHES:
+			return 4
+	return 0
+
+
+func _creator_axis_name(section: int, axis: int) -> String:
+	match section:
+		EDIT_SECTION_BODY:
+			return ["身長", "頭", "胴", "脚", "横幅", "厚み"][axis]
+		EDIT_SECTION_FACE:
+			return ["目の間隔", "目の高さ", "目の大きさ", "口の幅", "口の高さ"][axis]
+		EDIT_SECTION_HAIR:
+			return ["髪型", "髪色", "髪の量"][axis]
+		EDIT_SECTION_CLOTHES:
+			return ["服の種類", "服の色", "肌の色", "靴の色"][axis]
+	return "項目"
+
+
+func _creator_axis_value_text(profile: Dictionary) -> String:
+	match edit_section:
+		EDIT_SECTION_BODY:
+			match edit_axis:
+				BODY_AXIS_HEIGHT:
+					return "%.2fm" % float(profile.get("height", DEFAULT_HEIGHT))
+				BODY_AXIS_HEAD:
+					return "%.2f" % float(profile.get("head_ratio", 0.24))
+				BODY_AXIS_TORSO:
+					return "%.2f" % float(profile.get("torso_ratio", 0.50))
+				BODY_AXIS_LEGS:
+					return "%.2f" % float(profile.get("leg_bias", 0.0))
+				BODY_AXIS_WIDTH:
+					return "%.2f" % float(profile.get("shoulder_scale", 1.0))
+				BODY_AXIS_DEPTH:
+					return "%.2f" % float(profile.get("body_depth_scale", 1.0))
+		EDIT_SECTION_FACE:
+			match edit_axis:
+				FACE_AXIS_EYE_SPACING:
+					return "%.2f" % float(profile.get("eye_spacing", 0.40))
+				FACE_AXIS_EYE_HEIGHT:
+					return "%.2f" % float(profile.get("eye_height", 0.04))
+				FACE_AXIS_EYE_SIZE:
+					return "%.3f" % float(profile.get("eye_size", 0.052))
+				FACE_AXIS_MOUTH_WIDTH:
+					return "%.2f" % float(profile.get("mouth_width", 0.24))
+				FACE_AXIS_MOUTH_HEIGHT:
+					return "%.2f" % float(profile.get("mouth_y", -0.20))
+		EDIT_SECTION_HAIR:
+			match edit_axis:
+				HAIR_AXIS_STYLE:
+					return HAIR_STYLE_LABELS[int(profile.get("hair_style", 0))]
+				HAIR_AXIS_COLOR:
+					return "色 %d" % (int(profile.get("hair_color_index", 0)) + 1)
+				HAIR_AXIS_VOLUME:
+					return "%.2f" % float(profile.get("hair_volume", 1.0))
+		EDIT_SECTION_CLOTHES:
+			match edit_axis:
+				CLOTHES_AXIS_STYLE:
+					var outfit := String(profile.get("outfit_type", "casual"))
+					return String(OUTFIT_LABELS.get(outfit, outfit))
+				CLOTHES_AXIS_COLOR:
+					return "色 %d" % (int(profile.get("cloth_color_index", 0)) + 1)
+				CLOTHES_AXIS_SKIN:
+					return "色 %d" % (int(profile.get("skin_color_index", 0)) + 1)
+				CLOTHES_AXIS_SHOES:
+					return "色 %d" % (int(profile.get("shoe_color_index", 0)) + 1)
+	return ""
+
+
+func _on_creator_section_pressed(section: int) -> void:
+	edit_section = section
+	edit_axis = 0
+	_refresh_creator_ui()
+
+
+func _on_creator_axis_pressed(axis: int) -> void:
+	if axis >= _creator_axis_count(edit_section):
+		return
+	edit_axis = axis
+	_refresh_creator_ui()
+
+
+func _on_creator_adjust_pressed(direction: int) -> void:
+	var changed := false
+	match edit_section:
+		EDIT_SECTION_BODY:
+			changed = _adjust_body_value(float(direction), CREATOR_CLICK_DELTA)
+		EDIT_SECTION_FACE:
+			changed = _adjust_face_value(float(direction), CREATOR_CLICK_DELTA)
+		EDIT_SECTION_HAIR:
+			changed = _adjust_hair_value(float(direction), CREATOR_CLICK_DELTA)
+		EDIT_SECTION_CLOTHES:
+			changed = _adjust_clothes_value(float(direction), CREATOR_CLICK_DELTA)
+	if changed:
+		_refresh_creator_ui()
+
+
+func _on_creator_name_changed(new_text: String) -> void:
+	var resident: Dictionary = residents[selected_index]
+	var profile: Dictionary = resident["profile"]
+	var name := new_text.strip_edges()
+	if name.is_empty():
+		name = "Resident"
+	profile["name"] = name
+	resident["profile"] = profile
+	residents[selected_index] = resident
+	var node: Node3D = resident["node"] as Node3D
+	node.name = name
+	_save_residents()
+
+
 func _update_hud() -> void:
 	if resident_label == null or residents.is_empty():
 		return
@@ -1849,14 +2230,9 @@ func _update_hud() -> void:
 	var gift_item := _current_gift_item()
 	var gift_text := "%s / %s" % [String(GIFT_CATEGORY_LABELS.get(_current_gift_category(), "贈り物")), String(gift_item.get("name", "贈り物"))]
 
-	var edit_hint := "クリック/F: 編集  R: 種類切替  Z/X: 調整  T/U/Y: 贈り物"
+	var edit_hint := "クリック/F: キャラメイク  T/U/Y: 贈り物"
 	if edit_mode:
-		edit_hint = "編集中 %s %d %s %.2f | R:種類 1-6:項目 Z/X:調整 F:終了" % [
-			_edit_section_name(edit_section),
-			edit_axis + 1,
-			_edit_axis_name(),
-			_edit_axis_value(profile)
-		]
+		edit_hint = "キャラメイク中"
 
 	resident_label.text = "%s  %s\n身長 %.2fm  頭 %.2f  胴 %.2f  脚補正 %.2f  幅 %.2f  厚み %.2f\n性格: %s  満足度: %.0f  状態: %s\n相談: %s\n贈り物: %s\n%s\n%s\n%s" % [
 		String(profile.get("name", "Resident")),
