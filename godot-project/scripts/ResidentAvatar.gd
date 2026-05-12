@@ -18,6 +18,7 @@ func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT)
 	var cloth_color: Color = profile.get("cloth_color", Color(0.55, 0.45, 0.75))
 	var skin_color: Color = profile.get("skin_color", Color(0.95, 0.78, 0.62))
 	var hair_color: Color = profile.get("hair_color", Color(0.12, 0.09, 0.08))
+	var shoe_color: Color = profile.get("shoe_color", Color(0.10, 0.10, 0.12))
 	var outfit_type := String(profile.get("outfit_type", "casual"))
 
 	# 頭を除いた首下を、胴体と脚でほぼ半分ずつ使う。leg_bias は少しだけ脚長/胴長へ寄せる調整値。
@@ -41,6 +42,10 @@ func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT)
 
 	_add_part("Left Leg", _capsule_mesh(leg_height, leg_radius), Vector3(-hip_width * 0.25, leg_y, 0.0), cloth_color.darkened(0.20))
 	_add_part("Right Leg", _capsule_mesh(leg_height, leg_radius), Vector3(hip_width * 0.25, leg_y, 0.0), cloth_color.darkened(0.20))
+	var shoe_size := Vector3(leg_radius * 2.35, maxf(height * 0.034, 0.042), leg_radius * 3.50)
+	var shoe_y := maxf(height * 0.017, 0.021)
+	_add_part("Left Shoe", _box_mesh(shoe_size), Vector3(-hip_width * 0.25, shoe_y, leg_radius * 0.72), shoe_color)
+	_add_part("Right Shoe", _box_mesh(shoe_size), Vector3(hip_width * 0.25, shoe_y, leg_radius * 0.72), shoe_color)
 
 	_add_part("Torso", _capsule_mesh(torso_height, torso_radius), Vector3(0.0, torso_y, 0.0), cloth_color)
 	_add_part("Neck", _capsule_mesh(height * 0.08, height * 0.035), Vector3(0.0, neck_y, 0.0), skin_color.darkened(0.03))
