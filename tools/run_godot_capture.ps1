@@ -8,94 +8,7 @@ param(
     [string[]]$UserArgs = @()
 )
 
-function Resolve-ExeCandidate {
-    param(
-        [string]$CandidatePath
-    )
-
-    if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
-        return $null
-    }
-
-    try {
-        $item = Get-Item -LiteralPath $CandidatePath -ErrorAction Stop
-    }
-    catch {
-        return $null
-    }
-
-    if ($item -is [System.IO.FileInfo] -and $item.Extension -ieq ".exe") {
-        return $item.FullName
-    }
-
-    if ($item -is [System.IO.DirectoryInfo]) {
-        $consoleExe = Get-ChildItem -LiteralPath $item.FullName -Filter "Godot*_console.exe" -File -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($consoleExe) {
-            return $consoleExe.FullName
-        }
-
-        $guiExe = Get-ChildItem -LiteralPath $item.FullName -Filter "Godot*.exe" -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike "*_console.exe" } |
-            Select-Object -First 1
-        if ($guiExe) {
-            return $guiExe.FullName
-        }
-    }
-
-    return $null
-}
-
-function Resolve-GodotExe {
-    param(
-        [string]$PreferredPath
-    )
-
-    $candidates = @()
-
-    if (-not [string]::IsNullOrWhiteSpace($PreferredPath)) {
-        $candidates += $PreferredPath
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:GODOT_EXE)) {
-        $candidates += $env:GODOT_EXE
-    }
-
-    $searchRoots = @(
-        (Join-Path $env:USERPROFILE "Downloads"),
-        (Join-Path $env:USERPROFILE "Desktop"),
-        "C:\Program Files",
-        "C:\Program Files (x86)"
-    )
-
-    foreach ($root in $searchRoots) {
-        if (-not (Test-Path -LiteralPath $root)) {
-            continue
-        }
-
-        $consoleMatches = Get-ChildItem -Path $root -Filter "Godot*_console.exe" -File -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName
-        if ($consoleMatches) {
-            $candidates += $consoleMatches
-        }
-
-        $guiMatches = Get-ChildItem -Path $root -Filter "Godot*.exe" -File -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike "*_console.exe" } |
-            Select-Object -ExpandProperty FullName
-        if ($guiMatches) {
-            $candidates += $guiMatches
-        }
-    }
-
-    foreach ($candidate in $candidates | Select-Object -Unique) {
-        $resolvedCandidate = Resolve-ExeCandidate -CandidatePath $candidate
-        if (-not [string]::IsNullOrWhiteSpace($resolvedCandidate)) {
-            return $resolvedCandidate
-        }
-    }
-
-    throw "Godot executable was not found. Set -GodotExe or GODOT_EXE."
-}
+. (Join-Path $PSScriptRoot "godot_env.ps1")
 
 if ($Frames -lt 1) {
     throw "-Frames must be 1 or greater."
@@ -105,19 +18,20 @@ if ($Fps -lt 1) {
     throw "-Fps must be 1 or greater."
 }
 
-$repoRoot = Split-Path $PSScriptRoot -Parent
-$projectPath = Join-Path $repoRoot "godot-project"
-$runtimeRoot = Join-Path $repoRoot "artifacts\godot-runtime"
-$godotRoamingDir = Join-Path $runtimeRoot "AppData\Roaming"
-$godotLocalDir = Join-Path $runtimeRoot "AppData\Local"
-$godotTempDir = Join-Path $runtimeRoot "Temp"
+$repoRoot = Get-TomocolRepoRoot -ScriptRoot $PSScriptRoot
+Import-TomocolDotEnv -RepoRoot $repoRoot
+$projectPath = Get-TomocolPathSetting -Name "TOMOCOL_GODOT_PROJECT_PATH" -DefaultRelativePath "godot-project" -RepoRoot $repoRoot
+$runtimeRoot = Get-TomocolPathSetting -Name "TOMOCOL_GODOT_RUNTIME_ROOT" -DefaultRelativePath "artifacts\godot-runtime" -RepoRoot $repoRoot
 $godotLogDir = Join-Path $runtimeRoot "logs"
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = Join-Path $repoRoot "screen_shots"
+    $OutputDir = Get-TomocolPathSetting -Name "TOMOCOL_CAPTURE_OUTPUT_DIR" -DefaultRelativePath "screen_shots" -RepoRoot $repoRoot
+}
+else {
+    $OutputDir = Resolve-TomocolPath -PathValue $OutputDir -BasePath $repoRoot
 }
 
-$resolvedGodotExe = Resolve-GodotExe -PreferredPath $GodotExe
+$resolvedGodotExe = Resolve-GodotExe -PreferredPath $GodotExe -RepoRoot $repoRoot
 $safePrefix = ($Prefix -replace '[<>:"/\\|?*]', '_')
 $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $captureBaseName = "$safePrefix`_$timestamp"
@@ -125,9 +39,6 @@ $captureRequestPath = Join-Path $OutputDir "$captureBaseName.png"
 $logFilePath = Join-Path $godotLogDir "$captureBaseName.log"
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-New-Item -ItemType Directory -Force -Path $godotRoamingDir | Out-Null
-New-Item -ItemType Directory -Force -Path $godotLocalDir | Out-Null
-New-Item -ItemType Directory -Force -Path $godotTempDir | Out-Null
 New-Item -ItemType Directory -Force -Path $godotLogDir | Out-Null
 
 $arguments = [System.Collections.Generic.List[string]]::new()
@@ -156,9 +67,11 @@ if ($projectUserArgs.Count -gt 0) {
     }
 }
 
-Write-Host "USING_GODOT_EXE=$resolvedGodotExe"
-Write-Host "USING_GODOT_LOG_FILE=$logFilePath"
-Write-Host "USING_CAPTURE_REQUEST=$captureRequestPath"
+Write-Host "USING_GODOT_EXE=$(Format-TomocolDisplayPath -PathValue $resolvedGodotExe -RepoRoot $repoRoot)"
+Write-Host "USING_GODOT_PROJECT_PATH=$(Format-TomocolDisplayPath -PathValue $projectPath -RepoRoot $repoRoot)"
+Write-Host "USING_GODOT_RUNTIME_ROOT=$(Format-TomocolDisplayPath -PathValue $runtimeRoot -RepoRoot $repoRoot)"
+Write-Host "USING_GODOT_LOG_FILE=$(Format-TomocolDisplayPath -PathValue $logFilePath -RepoRoot $repoRoot)"
+Write-Host "USING_CAPTURE_REQUEST=$(Format-TomocolDisplayPath -PathValue $captureRequestPath -RepoRoot $repoRoot)"
 
 $originalEnv = @{
     "APPDATA" = $env:APPDATA
@@ -167,25 +80,17 @@ $originalEnv = @{
     "TMP" = $env:TMP
 }
 
-$env:APPDATA = $godotRoamingDir
-$env:LOCALAPPDATA = $godotLocalDir
-$env:TEMP = $godotTempDir
-$env:TMP = $godotTempDir
-
 $exitCode = 1
 try {
-    & $resolvedGodotExe @arguments
+    Set-GodotRuntimeEnvironment -RuntimeRoot $runtimeRoot
+    $godotOutput = & $resolvedGodotExe @arguments 2>&1
     $exitCode = $LASTEXITCODE
+    foreach ($line in $godotOutput) {
+        Write-Host (Format-TomocolOutputLine -Line $line -RepoRoot $repoRoot)
+    }
 }
 finally {
-    foreach ($key in $originalEnv.Keys) {
-        if ($null -eq $originalEnv[$key]) {
-            Remove-Item -Path "Env:$key" -ErrorAction SilentlyContinue
-        }
-        else {
-            Set-Item -Path "Env:$key" -Value $originalEnv[$key]
-        }
-    }
+    Restore-Environment -OriginalEnv $originalEnv
 }
 
 $framesWritten = Get-ChildItem -LiteralPath $OutputDir -Filter "$captureBaseName*.png" -File -ErrorAction SilentlyContinue |
@@ -193,7 +98,7 @@ $framesWritten = Get-ChildItem -LiteralPath $OutputDir -Filter "$captureBaseName
 $lastFrame = $framesWritten | Select-Object -Last 1
 Write-Host "CAPTURE_FRAME_COUNT=$($framesWritten.Count)"
 if ($lastFrame) {
-    Write-Host "CAPTURE_LAST_FRAME=$($lastFrame.FullName)"
+    Write-Host "CAPTURE_LAST_FRAME=$(Format-TomocolDisplayPath -PathValue $lastFrame.FullName -RepoRoot $repoRoot)"
 }
 
 exit $exitCode
