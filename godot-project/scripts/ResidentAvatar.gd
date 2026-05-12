@@ -4,6 +4,15 @@ class_name ResidentAvatar
 const DEFAULT_HEIGHT := 1.60
 const DEFAULT_DOOR_HEIGHT := 2.00
 
+# ここから下の比率は「キャラ作成 UI の値」から生成される見た目の調整用です。
+# UI 側で触る値を増やす前に、まずここを変えると全住人へまとめて効きます。
+const ARM_ROOT_Y_RATIO := 0.70
+const ARM_ROOT_X_RATIO := 0.46
+const ARM_SPREAD_DEGREES := 14.0
+const FACE_FRONT_Z_RATIO := 1.02
+const FACE_PATCH_Z_RATIO := 0.94
+const EYE_VISIBLE_SCALE := 2.25
+
 
 func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT) -> void:
 	for child in get_children():
@@ -40,21 +49,9 @@ func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT)
 	var head_y: float = leg_height + torso_height + head_height * 0.5
 	var head_radius: float = head_height * 0.5
 
-	_add_part("Left Leg", _capsule_mesh(leg_height, leg_radius), Vector3(-hip_width * 0.25, leg_y, 0.0), cloth_color.darkened(0.20))
-	_add_part("Right Leg", _capsule_mesh(leg_height, leg_radius), Vector3(hip_width * 0.25, leg_y, 0.0), cloth_color.darkened(0.20))
-	var shoe_size := Vector3(leg_radius * 2.35, maxf(height * 0.034, 0.042), leg_radius * 3.50)
-	var shoe_y := maxf(height * 0.017, 0.021)
-	_add_part("Left Shoe", _box_mesh(shoe_size), Vector3(-hip_width * 0.25, shoe_y, leg_radius * 0.72), shoe_color)
-	_add_part("Right Shoe", _box_mesh(shoe_size), Vector3(hip_width * 0.25, shoe_y, leg_radius * 0.72), shoe_color)
-
-	_add_part("Torso", _capsule_mesh(torso_height, torso_radius), Vector3(0.0, torso_y, 0.0), cloth_color)
-	_add_part("Neck", _capsule_mesh(height * 0.08, height * 0.035), Vector3(0.0, neck_y, 0.0), skin_color.darkened(0.03))
-	_add_part("Head", _sphere_mesh(head_radius), Vector3(0.0, head_y, 0.0), skin_color)
-
-	var arm_length: float = torso_height * 0.86
-	var arm_y := torso_y - torso_height * 0.05
-	_add_part("Left Arm", _capsule_mesh(arm_length, arm_radius), Vector3(-shoulder_width * 0.62, arm_y, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, 7.0))
-	_add_part("Right Arm", _capsule_mesh(arm_length, arm_radius), Vector3(shoulder_width * 0.62, arm_y, 0.0), skin_color.darkened(0.03), Vector3(0.0, 0.0, -7.0))
+	_add_lower_body(outfit_type, cloth_color, skin_color, shoe_color, height, leg_height, leg_y, hip_width, leg_radius)
+	_add_torso_and_head(cloth_color, skin_color, height, leg_height, torso_height, torso_y, neck_y, head_y, head_radius, torso_radius, shoulder_width)
+	_add_arms(cloth_color, skin_color, height, leg_height, torso_height, shoulder_width, torso_radius, arm_radius)
 
 	_add_outfit_detail(outfit_type, cloth_color, leg_height, torso_height, torso_radius, shoulder_width)
 	_add_hair_parts(profile, head_y, head_radius, hair_color)
@@ -75,6 +72,50 @@ func head_position(profile: Dictionary) -> Vector3:
 	var torso_height: float = body_height * torso_share
 	var leg_height: float = body_height - torso_height
 	return Vector3(0.0, leg_height + torso_height + head_height * 0.5, 0.0)
+
+
+func _add_lower_body(outfit_type: String, cloth_color: Color, skin_color: Color, shoe_color: Color, height: float, leg_height: float, leg_y: float, hip_width: float, leg_radius: float) -> void:
+	# 脚は「長さの編集」が画面に出やすい部分なので、細すぎる棒に見えないように靴とソックスを少し大きめに置きます。
+	# skirt 系は肌色の脚、それ以外は服色のパンツにすると、服変更の差が小さな画面でも読みやすくなります。
+	var leg_color := _leg_color(outfit_type, cloth_color, skin_color)
+	var shoe_size := Vector3(leg_radius * 2.95, maxf(height * 0.038, 0.046), leg_radius * 4.40)
+	var shoe_y := maxf(height * 0.019, 0.024)
+	var foot_gap := hip_width * 0.26
+	_add_part("Left Leg", _capsule_mesh(leg_height * 0.92, leg_radius), Vector3(-foot_gap, leg_y + leg_height * 0.035, 0.0), leg_color)
+	_add_part("Right Leg", _capsule_mesh(leg_height * 0.92, leg_radius), Vector3(foot_gap, leg_y + leg_height * 0.035, 0.0), leg_color)
+	_add_part("Left Sock", _capsule_mesh(maxf(height * 0.07, 0.07), leg_radius * 1.04), Vector3(-foot_gap, shoe_y + height * 0.055, 0.0), Color(0.94, 0.92, 0.84))
+	_add_part("Right Sock", _capsule_mesh(maxf(height * 0.07, 0.07), leg_radius * 1.04), Vector3(foot_gap, shoe_y + height * 0.055, 0.0), Color(0.94, 0.92, 0.84))
+	_add_part("Left Shoe", _box_mesh(shoe_size), Vector3(-foot_gap, shoe_y, leg_radius * 0.96), shoe_color)
+	_add_part("Right Shoe", _box_mesh(shoe_size), Vector3(foot_gap, shoe_y, leg_radius * 0.96), shoe_color)
+
+
+func _add_torso_and_head(cloth_color: Color, skin_color: Color, height: float, leg_height: float, torso_height: float, torso_y: float, neck_y: float, head_y: float, head_radius: float, torso_radius: float, shoulder_width: float) -> void:
+	# 胴は capsule 1本だけだと円柱感が強いので、服と腰の丸みだけを足します。
+	# SD寄りの体では肩線を描かず、首元から腕が下へ広がるシルエットで肩を読ませます。
+	_add_part("Torso", _capsule_mesh(torso_height * 0.96, torso_radius), Vector3(0.0, torso_y, 0.0), cloth_color)
+	_add_part("Waist Softness", _capsule_mesh(shoulder_width * 0.60, torso_radius * 0.40), Vector3(0.0, leg_height + torso_height * 0.31, 0.0), cloth_color.darkened(0.04), Vector3(0.0, 0.0, 90.0))
+	_add_part("Neck", _capsule_mesh(height * 0.065, height * 0.028), Vector3(0.0, neck_y - height * 0.006, 0.0), skin_color.darkened(0.03))
+	_add_part("Head", _sphere_mesh(head_radius), Vector3(0.0, head_y, 0.0), skin_color, Vector3.ZERO, Vector3(0.96, 1.03, 0.92))
+
+
+func _add_arms(cloth_color: Color, skin_color: Color, height: float, leg_height: float, torso_height: float, shoulder_width: float, torso_radius: float, arm_radius: float) -> void:
+	# 腕はサンプルのSD感に寄せ、首元の近くから始まって下へ行くほど外へ広がる配置にします。
+	# ARM_ROOT_Y_RATIO は袖の上端、ARM_ROOT_X_RATIO は袖の中心幅、ARM_SPREAD_DEGREES は末端の広がりです。
+	var arm_root_y := leg_height + torso_height * ARM_ROOT_Y_RATIO
+	var arm_x := shoulder_width * ARM_ROOT_X_RATIO
+	var arm_length: float = torso_height * 0.82
+	var sleeve_length: float = arm_length * 0.32
+	var forearm_length: float = arm_length * 0.50
+	var sleeve_y := arm_root_y - sleeve_length * 0.05
+	var forearm_y := sleeve_y - sleeve_length * 0.44 - forearm_length * 0.43
+	var hand_y := forearm_y - forearm_length * 0.54
+	var sleeve_z := torso_radius * 0.03
+	_add_part("Left Sleeve", _capsule_mesh(sleeve_length, arm_radius * 1.12), Vector3(-arm_x, sleeve_y, sleeve_z), cloth_color.lightened(0.04), Vector3(0.0, 0.0, -ARM_SPREAD_DEGREES))
+	_add_part("Right Sleeve", _capsule_mesh(sleeve_length, arm_radius * 1.12), Vector3(arm_x, sleeve_y, sleeve_z), cloth_color.lightened(0.04), Vector3(0.0, 0.0, ARM_SPREAD_DEGREES))
+	_add_part("Left Forearm", _capsule_mesh(forearm_length, arm_radius * 0.92), Vector3(-arm_x * 1.16, forearm_y, sleeve_z), skin_color.darkened(0.025), Vector3(0.0, 0.0, -ARM_SPREAD_DEGREES * 0.42))
+	_add_part("Right Forearm", _capsule_mesh(forearm_length, arm_radius * 0.92), Vector3(arm_x * 1.16, forearm_y, sleeve_z), skin_color.darkened(0.025), Vector3(0.0, 0.0, ARM_SPREAD_DEGREES * 0.42))
+	_add_ellipsoid_part("Left Hand", arm_radius * 1.25, Vector3(-arm_x * 1.22, hand_y, sleeve_z), skin_color, Vector3(0.88, 1.10, 0.88))
+	_add_ellipsoid_part("Right Hand", arm_radius * 1.25, Vector3(arm_x * 1.22, hand_y, sleeve_z), skin_color, Vector3(0.88, 1.10, 0.88))
 
 
 func _add_outfit_detail(outfit_type: String, cloth_color: Color, leg_height: float, torso_height: float, torso_radius: float, shoulder_width: float) -> void:
@@ -98,41 +139,89 @@ func _add_hair_parts(profile: Dictionary, head_y: float, head_radius: float, hai
 	var hair_style := int(profile.get("hair_style", 0))
 	var hair_volume: float = float(profile.get("hair_volume", 1.0))
 	var cap_radius := head_radius * 1.02 * hair_volume
+	var front_z := head_radius * 0.82
 	_add_part("Hair Cap", _sphere_mesh(cap_radius), Vector3(0.0, head_y + head_radius * 0.14, -head_radius * 0.08), hair_color)
+	# 前髪は小さな楕円を重ねています。face patch が肌色で前面を抜くので、ヘルメット感を弱められます。
+	_add_ellipsoid_part("Bang Center", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.43, front_z), hair_color, Vector3(0.74, 1.18, 0.34))
+	_add_ellipsoid_part("Bang Left", head_radius * 0.15 * hair_volume, Vector3(-head_radius * 0.26, head_y + head_radius * 0.38, front_z * 0.98), hair_color, Vector3(0.72, 1.04, 0.32), Vector3(0.0, 0.0, -16.0))
+	_add_ellipsoid_part("Bang Right", head_radius * 0.15 * hair_volume, Vector3(head_radius * 0.26, head_y + head_radius * 0.38, front_z * 0.98), hair_color, Vector3(0.72, 1.04, 0.32), Vector3(0.0, 0.0, 16.0))
 
 	if hair_style == 1:
 		_add_part("Long Back Hair", _capsule_mesh(head_radius * 1.65, head_radius * 0.34 * hair_volume), Vector3(0.0, head_y - head_radius * 0.70, -head_radius * 0.62), hair_color, Vector3(6.0, 0.0, 0.0))
+		_add_part("Long Hair Left", _capsule_mesh(head_radius * 1.12, head_radius * 0.16 * hair_volume), Vector3(-head_radius * 0.62, head_y - head_radius * 0.34, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, -8.0))
+		_add_part("Long Hair Right", _capsule_mesh(head_radius * 1.12, head_radius * 0.16 * hair_volume), Vector3(head_radius * 0.62, head_y - head_radius * 0.34, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, 8.0))
 	elif hair_style == 2:
 		_add_part("Left Bun", _sphere_mesh(head_radius * 0.34 * hair_volume), Vector3(-head_radius * 0.82, head_y + head_radius * 0.12, -head_radius * 0.08), hair_color)
 		_add_part("Right Bun", _sphere_mesh(head_radius * 0.34 * hair_volume), Vector3(head_radius * 0.82, head_y + head_radius * 0.12, -head_radius * 0.08), hair_color)
+		_add_part("Short Side Hair Left", _capsule_mesh(head_radius * 0.46, head_radius * 0.10 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.08, head_radius * 0.12), hair_color, Vector3(0.0, 0.0, -5.0))
+		_add_part("Short Side Hair Right", _capsule_mesh(head_radius * 0.46, head_radius * 0.10 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.08, head_radius * 0.12), hair_color, Vector3(0.0, 0.0, 5.0))
 	elif hair_style == 3:
 		_add_part("Ponytail", _capsule_mesh(head_radius * 1.15, head_radius * 0.22 * hair_volume), Vector3(0.0, head_y - head_radius * 0.18, -head_radius * 0.92), hair_color, Vector3(28.0, 0.0, 0.0))
+		_add_part("Pony Side Left", _capsule_mesh(head_radius * 0.64, head_radius * 0.12 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.15, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, -7.0))
+		_add_part("Pony Side Right", _capsule_mesh(head_radius * 0.64, head_radius * 0.12 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.15, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, 7.0))
 	elif hair_style == 4:
-		_add_part("Bob Hair Left", _capsule_mesh(head_radius * 0.85, head_radius * 0.18 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.28, -head_radius * 0.18), hair_color, Vector3(5.0, 0.0, -6.0))
-		_add_part("Bob Hair Right", _capsule_mesh(head_radius * 0.85, head_radius * 0.18 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.28, -head_radius * 0.18), hair_color, Vector3(5.0, 0.0, 6.0))
+		_add_part("Bob Hair Left", _capsule_mesh(head_radius * 0.88, head_radius * 0.18 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.26, head_radius * 0.08), hair_color, Vector3(3.0, 0.0, -6.0))
+		_add_part("Bob Hair Right", _capsule_mesh(head_radius * 0.88, head_radius * 0.18 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.26, head_radius * 0.08), hair_color, Vector3(3.0, 0.0, 6.0))
+	else:
+		_add_part("Short Side Hair Left", _capsule_mesh(head_radius * 0.40, head_radius * 0.10 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.02, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, -5.0))
+		_add_part("Short Side Hair Right", _capsule_mesh(head_radius * 0.40, head_radius * 0.10 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.02, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, 5.0))
 
 
 func _add_face_parts(profile: Dictionary, head_y: float, head_radius: float) -> void:
+	var skin_color: Color = profile.get("skin_color", Color(0.95, 0.78, 0.62))
+	var hair_color: Color = profile.get("hair_color", Color(0.12, 0.09, 0.08))
 	var eye_spacing: float = float(profile.get("eye_spacing", 0.40)) * head_radius
 	var eye_height: float = head_y + float(profile.get("eye_height", 0.04)) * head_radius
-	var eye_size: float = float(profile.get("eye_size", 0.052)) * head_radius
+	var eye_size: float = float(profile.get("eye_size", 0.052)) * head_radius * EYE_VISIBLE_SCALE
 	var mouth_width: float = float(profile.get("mouth_width", 0.24)) * head_radius
 	var mouth_y: float = head_y + float(profile.get("mouth_y", -0.20)) * head_radius
-	var face_z: float = head_radius * 0.86
+	var face_z: float = head_radius * FACE_FRONT_Z_RATIO
 
-	_add_part("Left Eye", _sphere_mesh(eye_size), Vector3(-eye_spacing, eye_height, face_z), Color(0.05, 0.04, 0.04))
-	_add_part("Right Eye", _sphere_mesh(eye_size), Vector3(eye_spacing, eye_height, face_z), Color(0.05, 0.04, 0.04))
-	_add_part("Mouth", _box_mesh(Vector3(mouth_width, eye_size * 0.55, eye_size * 0.45)), Vector3(0.0, mouth_y, face_z + eye_size * 0.18), Color(0.46, 0.13, 0.16))
+	# 肌色の顔面パッチを前に置いて、髪キャップの下半分を自然に隠します。
+	_add_ellipsoid_part("Face Patch", head_radius * 0.78, Vector3(0.0, head_y - head_radius * 0.03, head_radius * FACE_PATCH_Z_RATIO), skin_color.lightened(0.02), Vector3(0.92, 0.90, 0.04))
+	_add_ellipsoid_part("Left Ear", head_radius * 0.14, Vector3(-head_radius * 0.92, head_y + head_radius * 0.02, head_radius * 0.04), skin_color.darkened(0.02), Vector3(0.58, 1.0, 0.42))
+	_add_ellipsoid_part("Right Ear", head_radius * 0.14, Vector3(head_radius * 0.92, head_y + head_radius * 0.02, head_radius * 0.04), skin_color.darkened(0.02), Vector3(0.58, 1.0, 0.42))
+
+	# 白目、瞳、ハイライトを分けると、遠目でも表情が読みやすくなります。
+	var eye_white := Color(0.98, 0.97, 0.92)
+	var pupil := Color(0.035, 0.030, 0.028)
+	_add_ellipsoid_part("Left Eye White", eye_size, Vector3(-eye_spacing, eye_height, face_z), eye_white, Vector3(1.28, 0.72, 0.13))
+	_add_ellipsoid_part("Right Eye White", eye_size, Vector3(eye_spacing, eye_height, face_z), eye_white, Vector3(1.28, 0.72, 0.13))
+	_add_ellipsoid_part("Left Pupil", eye_size * 0.42, Vector3(-eye_spacing, eye_height - eye_size * 0.02, face_z + eye_size * 0.16), pupil, Vector3(0.82, 1.04, 0.16))
+	_add_ellipsoid_part("Right Pupil", eye_size * 0.42, Vector3(eye_spacing, eye_height - eye_size * 0.02, face_z + eye_size * 0.16), pupil, Vector3(0.82, 1.04, 0.16))
+	_add_ellipsoid_part("Left Eye Shine", eye_size * 0.12, Vector3(-eye_spacing - eye_size * 0.14, eye_height + eye_size * 0.18, face_z + eye_size * 0.23), Color(1.0, 1.0, 0.96), Vector3(1.0, 1.0, 0.12))
+	_add_ellipsoid_part("Right Eye Shine", eye_size * 0.12, Vector3(eye_spacing - eye_size * 0.14, eye_height + eye_size * 0.18, face_z + eye_size * 0.23), Color(1.0, 1.0, 0.96), Vector3(1.0, 1.0, 0.12))
+
+	_add_part("Left Brow", _capsule_mesh(eye_size * 1.75, eye_size * 0.13), Vector3(-eye_spacing, eye_height + eye_size * 0.88, face_z + eye_size * 0.10), hair_color.darkened(0.15), Vector3(0.0, 0.0, 86.0))
+	_add_part("Right Brow", _capsule_mesh(eye_size * 1.75, eye_size * 0.13), Vector3(eye_spacing, eye_height + eye_size * 0.88, face_z + eye_size * 0.10), hair_color.darkened(0.15), Vector3(0.0, 0.0, 94.0))
+	_add_ellipsoid_part("Nose", eye_size * 0.34, Vector3(0.0, head_y - head_radius * 0.07, face_z + eye_size * 0.10), skin_color.darkened(0.10), Vector3(0.48, 0.82, 0.18))
+	_add_ellipsoid_part("Left Cheek", eye_size * 0.42, Vector3(-eye_spacing * 0.88, mouth_y + eye_size * 0.56, face_z + eye_size * 0.06), Color(1.0, 0.55, 0.52, 0.24), Vector3(1.20, 0.55, 0.08))
+	_add_ellipsoid_part("Right Cheek", eye_size * 0.42, Vector3(eye_spacing * 0.88, mouth_y + eye_size * 0.56, face_z + eye_size * 0.06), Color(1.0, 0.55, 0.52, 0.24), Vector3(1.20, 0.55, 0.08))
+	_add_part("Smile", _capsule_mesh(maxf(mouth_width, eye_size * 1.55), eye_size * 0.13), Vector3(0.0, mouth_y, face_z + eye_size * 0.14), Color(0.52, 0.13, 0.12), Vector3(0.0, 0.0, 90.0))
 
 
-func _add_part(part_name: String, mesh: Mesh, local_position: Vector3, color: Color, rotation_deg := Vector3.ZERO) -> void:
+func _leg_color(outfit_type: String, cloth_color: Color, skin_color: Color) -> Color:
+	if outfit_type == "skirt":
+		return skin_color.lightened(0.02)
+	if outfit_type == "room":
+		return cloth_color.lightened(0.18)
+	return cloth_color.darkened(0.20)
+
+
+func _add_ellipsoid_part(part_name: String, radius: float, local_position: Vector3, color: Color, local_scale := Vector3.ONE, rotation_deg := Vector3.ZERO) -> MeshInstance3D:
+	return _add_part(part_name, _sphere_mesh(radius), local_position, color, rotation_deg, local_scale)
+
+
+func _add_part(part_name: String, mesh: Mesh, local_position: Vector3, color: Color, rotation_deg := Vector3.ZERO, local_scale := Vector3.ONE) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()
 	instance.name = part_name
 	instance.mesh = mesh
 	instance.position = local_position
 	instance.rotation_degrees = rotation_deg
+	instance.scale = local_scale
 	instance.material_override = _material(color)
 	add_child(instance)
+	return instance
 
 
 func _box_mesh(size: Vector3) -> BoxMesh:
