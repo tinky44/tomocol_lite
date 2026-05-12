@@ -1,140 +1,67 @@
 extends Node3D
 
+const GameDataScript := preload("res://scripts/GameData.gd")
+const ResidentProfileStoreScript := preload("res://scripts/ResidentProfileStore.gd")
 const ResidentAvatarScript := preload("res://scripts/ResidentAvatar.gd")
 
-const SAVE_PATH := "user://residents.json"
+const ROOM_WIDTH := GameDataScript.ROOM_WIDTH
+const ROOM_DEPTH := GameDataScript.ROOM_DEPTH
+const ROOM_HEIGHT := GameDataScript.ROOM_HEIGHT
+const ISLAND_RADIUS_X := GameDataScript.ISLAND_RADIUS_X
+const ISLAND_RADIUS_Z := GameDataScript.ISLAND_RADIUS_Z
+const DEFAULT_HEIGHT := GameDataScript.DEFAULT_HEIGHT
+const DEFAULT_DOOR_HEIGHT := GameDataScript.DEFAULT_DOOR_HEIGHT
+const HEIGHT_MIN := GameDataScript.HEIGHT_MIN
+const HEIGHT_MAX := GameDataScript.HEIGHT_MAX
+const STARTING_RESIDENT_COUNT := GameDataScript.STARTING_RESIDENT_COUNT
+const ISLAND_RESIDENT_SCALE := GameDataScript.ISLAND_RESIDENT_SCALE
+const HOUSE_RESIDENT_SCALE := GameDataScript.HOUSE_RESIDENT_SCALE
 
-const ROOM_WIDTH := 5.0
-const ROOM_DEPTH := 4.0
-const ROOM_HEIGHT := 2.4
+const EDIT_SECTION_BODY := GameDataScript.EDIT_SECTION_BODY
+const EDIT_SECTION_FACE := GameDataScript.EDIT_SECTION_FACE
+const EDIT_SECTION_HAIR := GameDataScript.EDIT_SECTION_HAIR
+const EDIT_SECTION_CLOTHES := GameDataScript.EDIT_SECTION_CLOTHES
+const EDIT_SECTION_COUNT := GameDataScript.EDIT_SECTION_COUNT
+const BODY_AXIS_HEIGHT := GameDataScript.BODY_AXIS_HEIGHT
+const BODY_AXIS_HEAD := GameDataScript.BODY_AXIS_HEAD
+const BODY_AXIS_TORSO := GameDataScript.BODY_AXIS_TORSO
+const BODY_AXIS_LEGS := GameDataScript.BODY_AXIS_LEGS
+const BODY_AXIS_WIDTH := GameDataScript.BODY_AXIS_WIDTH
+const BODY_AXIS_DEPTH := GameDataScript.BODY_AXIS_DEPTH
+const FACE_AXIS_EYE_SPACING := GameDataScript.FACE_AXIS_EYE_SPACING
+const FACE_AXIS_EYE_HEIGHT := GameDataScript.FACE_AXIS_EYE_HEIGHT
+const FACE_AXIS_EYE_SIZE := GameDataScript.FACE_AXIS_EYE_SIZE
+const FACE_AXIS_MOUTH_WIDTH := GameDataScript.FACE_AXIS_MOUTH_WIDTH
+const FACE_AXIS_MOUTH_HEIGHT := GameDataScript.FACE_AXIS_MOUTH_HEIGHT
+const HAIR_AXIS_STYLE := GameDataScript.HAIR_AXIS_STYLE
+const HAIR_AXIS_COLOR := GameDataScript.HAIR_AXIS_COLOR
+const HAIR_AXIS_VOLUME := GameDataScript.HAIR_AXIS_VOLUME
+const CLOTHES_AXIS_STYLE := GameDataScript.CLOTHES_AXIS_STYLE
+const CLOTHES_AXIS_COLOR := GameDataScript.CLOTHES_AXIS_COLOR
+const CLOTHES_AXIS_SKIN := GameDataScript.CLOTHES_AXIS_SKIN
+const CLOTHES_AXIS_SHOES := GameDataScript.CLOTHES_AXIS_SHOES
 
-const ISLAND_RADIUS_X := 6.20
-const ISLAND_RADIUS_Z := 4.15
-
-const DEFAULT_HEIGHT := 1.60
-const DEFAULT_DOOR_HEIGHT := 2.00
-const HEIGHT_MIN := 1.35
-const HEIGHT_MAX := 3.20
-const STARTING_RESIDENT_COUNT := 1
-const ISLAND_RESIDENT_SCALE := 0.46
-const HOUSE_RESIDENT_SCALE := 1.0
-
-const EDIT_SECTION_BODY := 0
-const EDIT_SECTION_FACE := 1
-const EDIT_SECTION_HAIR := 2
-const EDIT_SECTION_CLOTHES := 3
-const EDIT_SECTION_COUNT := 4
-
-const BODY_AXIS_HEIGHT := 0
-const BODY_AXIS_HEAD := 1
-const BODY_AXIS_TORSO := 2
-const BODY_AXIS_LEGS := 3
-const BODY_AXIS_WIDTH := 4
-const BODY_AXIS_DEPTH := 5
-
-const FACE_AXIS_EYE_SPACING := 0
-const FACE_AXIS_EYE_HEIGHT := 1
-const FACE_AXIS_EYE_SIZE := 2
-const FACE_AXIS_MOUTH_WIDTH := 3
-const FACE_AXIS_MOUTH_HEIGHT := 4
-
-const HAIR_AXIS_STYLE := 0
-const HAIR_AXIS_COLOR := 1
-const HAIR_AXIS_VOLUME := 2
-
-const CLOTHES_AXIS_STYLE := 0
-const CLOTHES_AXIS_COLOR := 1
-const CLOTHES_AXIS_SKIN := 2
-const CLOTHES_AXIS_SHOES := 3
-
-const HOUSE_ENTRY_POINT := Vector3(0.0, 0.0, -0.82)
-const ROOM_EXIT_POINT := Vector3(1.45, 0.0, -1.43)
-const ISLAND_HOUSE_BLOCKERS := [
-	{"center": Vector2(0.0, -1.52), "half_extents": Vector2(0.86, 0.64)},
-	{"center": Vector2(-3.35, -1.10), "half_extents": Vector2(0.72, 0.56)},
-	{"center": Vector2(3.35, -0.96), "half_extents": Vector2(0.72, 0.56)}
-]
-
-const GIFT_CATEGORY_KEYS := ["food", "clothes", "furniture", "tools"]
-const GIFT_CATEGORY_LABELS := {
-	"food": "食べ物",
-	"clothes": "服",
-	"furniture": "家具",
-	"tools": "道具"
-}
-
-const FOOD_ITEMS := [
-	{"id": "onigiri", "name": "おにぎり", "tag": "米", "color": Color(0.96, 0.96, 0.90)},
-	{"id": "pancake", "name": "パンケーキ", "tag": "甘いもの", "color": Color(0.92, 0.70, 0.38)},
-	{"id": "soup", "name": "野菜スープ", "tag": "温かいもの", "color": Color(0.88, 0.48, 0.28)}
-]
-const CLOTHES_ITEMS := [
-	{"id": "casual", "name": "普段着", "tag": "落ち着いた服", "outfit": "casual", "color": Color(0.34, 0.50, 0.80)},
-	{"id": "skirt", "name": "スカート服", "tag": "かわいい服", "outfit": "skirt", "color": Color(0.78, 0.30, 0.42)},
-	{"id": "formal", "name": "きちんとした服", "tag": "きれいな服", "outfit": "formal", "color": Color(0.22, 0.28, 0.48)},
-	{"id": "room", "name": "部屋着", "tag": "楽な服", "outfit": "room", "color": Color(0.55, 0.62, 0.46)}
-]
-const FURNITURE_ITEMS := [
-	{"id": "stool", "name": "踏み台", "tag": "棚", "color": Color(0.62, 0.46, 0.28)},
-	{"id": "long_bed", "name": "長めのベッド", "tag": "寝具", "color": Color(0.64, 0.62, 0.80)},
-	{"id": "wide_chair", "name": "ゆったり椅子", "tag": "椅子", "color": Color(0.35, 0.58, 0.62)}
-]
-const TOOL_ITEMS := [
-	{"id": "camera", "name": "カメラ", "tag": "観察", "color": Color(0.18, 0.18, 0.20)},
-	{"id": "book", "name": "日記帳", "tag": "読書", "color": Color(0.58, 0.40, 0.26)},
-	{"id": "measure", "name": "メジャー", "tag": "採寸", "color": Color(0.95, 0.80, 0.36)}
-]
-
-const HAIR_COLORS := [
-	Color(0.12, 0.09, 0.08),
-	Color(0.26, 0.16, 0.10),
-	Color(0.62, 0.42, 0.22),
-	Color(0.08, 0.08, 0.10),
-	Color(0.58, 0.36, 0.48)
-]
-const CLOTH_COLORS := [
-	Color(0.34, 0.50, 0.80),
-	Color(0.78, 0.30, 0.42),
-	Color(0.28, 0.64, 0.48),
-	Color(0.66, 0.48, 0.26),
-	Color(0.22, 0.28, 0.48),
-	Color(0.55, 0.62, 0.46)
-]
-const SKIN_COLORS := [
-	Color(0.96, 0.80, 0.64),
-	Color(0.94, 0.76, 0.62),
-	Color(0.91, 0.70, 0.55),
-	Color(0.72, 0.50, 0.36),
-	Color(0.98, 0.86, 0.72)
-]
-const SHOE_COLORS := [
-	Color(0.10, 0.10, 0.12),
-	Color(0.34, 0.22, 0.14),
-	Color(0.86, 0.82, 0.72),
-	Color(0.18, 0.24, 0.36),
-	Color(0.62, 0.22, 0.28)
-]
-const HAIR_STYLE_LABELS := ["短め", "長め", "おだんご", "ポニーテール", "ボブ"]
-const HAIR_COLOR_LABELS := ["黒髪", "こげ茶", "栗色", "濃い黒", "赤みブラウン"]
-const CLOTH_COLOR_LABELS := ["青", "赤", "緑", "茶", "紺", "くすみ緑"]
-const SKIN_COLOR_LABELS := ["明るめ", "自然", "健康的", "褐色", "淡い"]
-const SHOE_COLOR_LABELS := ["黒", "茶", "生成り", "紺", "赤茶"]
-const OUTFIT_LABELS := {
-	"casual": "普段着",
-	"skirt": "スカート服",
-	"formal": "きちんとした服",
-	"work": "エプロン",
-	"room": "部屋着"
-}
-const OUTFIT_ORDER := ["casual", "skirt", "formal", "work", "room"]
-
-const FURNITURE_ACTIONS := [
-	{"id": "shelf", "name": "棚", "position": Vector3(-2.03, 0.0, 0.86), "radius": 0.82},
-	{"id": "chair", "name": "椅子", "position": Vector3(-1.35, 0.0, -0.25), "radius": 0.78},
-	{"id": "desk", "name": "机", "position": Vector3(-1.35, 0.0, -1.10), "radius": 0.78},
-	{"id": "bed", "name": "ベッド", "position": Vector3(1.55, 0.0, 0.98), "radius": 0.95},
-	{"id": "door", "name": "ドア", "position": ROOM_EXIT_POINT, "radius": 0.86}
-]
+const HOUSE_ENTRY_POINT := GameDataScript.HOUSE_ENTRY_POINT
+const ROOM_EXIT_POINT := GameDataScript.ROOM_EXIT_POINT
+const ISLAND_HOUSE_BLOCKERS := GameDataScript.ISLAND_HOUSE_BLOCKERS
+const GIFT_CATEGORY_KEYS := GameDataScript.GIFT_CATEGORY_KEYS
+const GIFT_CATEGORY_LABELS := GameDataScript.GIFT_CATEGORY_LABELS
+const FOOD_ITEMS := GameDataScript.FOOD_ITEMS
+const CLOTHES_ITEMS := GameDataScript.CLOTHES_ITEMS
+const FURNITURE_ITEMS := GameDataScript.FURNITURE_ITEMS
+const TOOL_ITEMS := GameDataScript.TOOL_ITEMS
+const HAIR_COLORS := GameDataScript.HAIR_COLORS
+const CLOTH_COLORS := GameDataScript.CLOTH_COLORS
+const SKIN_COLORS := GameDataScript.SKIN_COLORS
+const SHOE_COLORS := GameDataScript.SHOE_COLORS
+const HAIR_STYLE_LABELS := GameDataScript.HAIR_STYLE_LABELS
+const HAIR_COLOR_LABELS := GameDataScript.HAIR_COLOR_LABELS
+const CLOTH_COLOR_LABELS := GameDataScript.CLOTH_COLOR_LABELS
+const SKIN_COLOR_LABELS := GameDataScript.SKIN_COLOR_LABELS
+const SHOE_COLOR_LABELS := GameDataScript.SHOE_COLOR_LABELS
+const OUTFIT_LABELS := GameDataScript.OUTFIT_LABELS
+const OUTFIT_ORDER := GameDataScript.OUTFIT_ORDER
+const FURNITURE_ACTIONS := GameDataScript.FURNITURE_ACTIONS
 
 var residents: Array[Dictionary] = []
 var selected_index := 0
@@ -1252,13 +1179,9 @@ func _add_new_resident(open_creator := true) -> void:
 
 
 func _new_resident_profile(index: int) -> Dictionary:
-	var defaults := _default_profiles()
-	var profile: Dictionary = defaults[index % defaults.size()].duplicate(true)
+	var profile := ResidentProfileStoreScript.new_profile(index)
 	profile["name"] = _unique_resident_name(String(profile.get("name", "Resident")))
-	profile["relationships"] = {}
-	profile["inventory"] = {}
-	profile["current_problem"] = {}
-	return _ensure_profile_defaults(profile, index)
+	return profile
 
 
 func _unique_resident_name(base_name: String) -> String:
@@ -1302,233 +1225,11 @@ func _rebuild_resident_avatar(index: int) -> void:
 
 
 func _load_profiles() -> Array[Dictionary]:
-	# 住人プロフィールは user://residents.json に保存する。存在しない場合は初期住人を作る。
-	var profiles: Array[Dictionary] = []
-	if FileAccess.file_exists(SAVE_PATH):
-		var text := FileAccess.get_file_as_string(SAVE_PATH)
-		var parsed = JSON.parse_string(text)
-		if parsed is Array:
-			for raw_profile in parsed:
-				if raw_profile is Dictionary:
-					profiles.append(_profile_from_save(raw_profile))
-
-	if profiles.is_empty():
-		profiles = _default_profiles()
-		if profiles.size() > STARTING_RESIDENT_COUNT:
-			profiles.resize(STARTING_RESIDENT_COUNT)
-
-	for index in range(profiles.size()):
-		profiles[index] = _ensure_profile_defaults(profiles[index], index)
-	return profiles
-
-
-func _default_profiles() -> Array[Dictionary]:
-	return [
-		{
-			"name": "Haru",
-			"height": 2.24,
-			"head_ratio": 0.23,
-			"torso_ratio": 0.50,
-			"leg_bias": 0.03,
-			"shoulder_scale": 0.94,
-			"body_depth_scale": 0.88,
-			"cloth_color_index": 1,
-			"cloth_color": CLOTH_COLORS[1],
-			"skin_color_index": 0,
-			"skin_color": SKIN_COLORS[0],
-			"hair_color_index": 0,
-			"hair_color": HAIR_COLORS[0],
-			"hair_style": 1,
-			"hair_volume": 1.0,
-			"eye_spacing": 0.42,
-			"eye_height": 0.05,
-			"eye_size": 0.055,
-			"mouth_width": 0.26,
-			"mouth_y": -0.22,
-			"outfit_type": "skirt",
-			"personality": "おだやか",
-			"likes": {"food": "甘いもの", "clothes": "かわいい服", "furniture": "寝具", "tools": "採寸"},
-			"satisfaction": 24.0,
-			"relationships": {},
-			"inventory": {}
-		},
-		{
-			"name": "Mio",
-			"height": 1.58,
-			"head_ratio": 0.25,
-			"torso_ratio": 0.51,
-			"leg_bias": 0.00,
-			"shoulder_scale": 1.02,
-			"body_depth_scale": 1.00,
-			"cloth_color_index": 0,
-			"cloth_color": CLOTH_COLORS[0],
-			"skin_color_index": 1,
-			"skin_color": SKIN_COLORS[1],
-			"hair_color_index": 1,
-			"hair_color": HAIR_COLORS[1],
-			"hair_style": 0,
-			"hair_volume": 1.0,
-			"eye_spacing": 0.38,
-			"eye_height": 0.02,
-			"eye_size": 0.052,
-			"mouth_width": 0.22,
-			"mouth_y": -0.20,
-			"outfit_type": "casual",
-			"personality": "まじめ",
-			"likes": {"food": "米", "clothes": "落ち着いた服", "furniture": "椅子", "tools": "読書"},
-			"satisfaction": 18.0,
-			"relationships": {},
-			"inventory": {}
-		},
-		{
-			"name": "Sena",
-			"height": 1.42,
-			"head_ratio": 0.28,
-			"torso_ratio": 0.52,
-			"leg_bias": -0.02,
-			"shoulder_scale": 0.82,
-			"body_depth_scale": 0.82,
-			"cloth_color_index": 2,
-			"cloth_color": CLOTH_COLORS[2],
-			"skin_color_index": 2,
-			"skin_color": SKIN_COLORS[2],
-			"hair_color_index": 3,
-			"hair_color": HAIR_COLORS[3],
-			"hair_style": 2,
-			"hair_volume": 1.0,
-			"eye_spacing": 0.46,
-			"eye_height": 0.07,
-			"eye_size": 0.062,
-			"mouth_width": 0.20,
-			"mouth_y": -0.18,
-			"outfit_type": "room",
-			"personality": "好奇心つよめ",
-			"likes": {"food": "温かいもの", "clothes": "楽な服", "furniture": "棚", "tools": "観察"},
-			"satisfaction": 16.0,
-			"relationships": {},
-			"inventory": {}
-		},
-		{
-			"name": "Riku",
-			"height": 1.82,
-			"head_ratio": 0.24,
-			"torso_ratio": 0.50,
-			"leg_bias": 0.01,
-			"shoulder_scale": 1.16,
-			"body_depth_scale": 1.16,
-			"cloth_color_index": 3,
-			"cloth_color": CLOTH_COLORS[3],
-			"skin_color_index": 0,
-			"skin_color": SKIN_COLORS[0],
-			"hair_color_index": 0,
-			"hair_color": HAIR_COLORS[0],
-			"hair_style": 0,
-			"hair_volume": 0.94,
-			"eye_spacing": 0.34,
-			"eye_height": 0.04,
-			"eye_size": 0.050,
-			"mouth_width": 0.28,
-			"mouth_y": -0.25,
-			"outfit_type": "formal",
-			"personality": "元気",
-			"likes": {"food": "米", "clothes": "きれいな服", "furniture": "椅子", "tools": "読書"},
-			"satisfaction": 20.0,
-			"relationships": {},
-			"inventory": {}
-		}
-	]
-
-
-func _ensure_profile_defaults(profile: Dictionary, index: int) -> Dictionary:
-	var defaults := _default_profiles()
-	var fallback: Dictionary = defaults[index % defaults.size()]
-	for key in fallback.keys():
-		if not profile.has(key):
-			profile[key] = fallback[key]
-
-	profile["height"] = clampf(float(profile.get("height", DEFAULT_HEIGHT)), HEIGHT_MIN, HEIGHT_MAX)
-	profile["head_ratio"] = clampf(float(profile.get("head_ratio", 0.24)), 0.18, 0.30)
-	profile["torso_ratio"] = clampf(float(profile.get("torso_ratio", 0.50)), 0.44, 0.56)
-	profile["leg_bias"] = clampf(float(profile.get("leg_bias", 0.0)), -0.08, 0.08)
-	profile["hair_style"] = _wrap_index(int(profile.get("hair_style", 0)), HAIR_STYLE_LABELS.size())
-	profile["hair_volume"] = clampf(float(profile.get("hair_volume", 1.0)), 0.82, 1.20)
-	profile["cloth_color_index"] = _wrap_index(int(profile.get("cloth_color_index", 0)), CLOTH_COLORS.size())
-	profile["skin_color_index"] = _wrap_index(int(profile.get("skin_color_index", 0)), SKIN_COLORS.size())
-	profile["hair_color_index"] = _wrap_index(int(profile.get("hair_color_index", 0)), HAIR_COLORS.size())
-	profile["shoe_color_index"] = _wrap_index(int(profile.get("shoe_color_index", 0)), SHOE_COLORS.size())
-	profile["cloth_color"] = _color_from_value(profile.get("cloth_color", CLOTH_COLORS[int(profile["cloth_color_index"])]), CLOTH_COLORS[int(profile["cloth_color_index"])])
-	profile["skin_color"] = _color_from_value(profile.get("skin_color", SKIN_COLORS[int(profile["skin_color_index"])]), SKIN_COLORS[int(profile["skin_color_index"])])
-	profile["hair_color"] = _color_from_value(profile.get("hair_color", HAIR_COLORS[int(profile["hair_color_index"])]), HAIR_COLORS[int(profile["hair_color_index"])])
-	profile["shoe_color"] = _color_from_value(profile.get("shoe_color", SHOE_COLORS[int(profile["shoe_color_index"])]), SHOE_COLORS[int(profile["shoe_color_index"])])
-	profile["likes"] = _ensure_dict(profile.get("likes", fallback.get("likes", {})))
-	profile["relationships"] = _ensure_dict(profile.get("relationships", {}))
-	profile["inventory"] = _ensure_inventory(profile.get("inventory", {}))
-	if not profile.has("current_problem"):
-		profile["current_problem"] = {}
-	return profile
-
-
-func _profile_from_save(raw_profile: Dictionary) -> Dictionary:
-	var profile := raw_profile.duplicate(true)
-	profile["cloth_color"] = _color_from_value(profile.get("cloth_color", CLOTH_COLORS[0]), CLOTH_COLORS[0])
-	profile["skin_color"] = _color_from_value(profile.get("skin_color", SKIN_COLORS[0]), SKIN_COLORS[0])
-	profile["hair_color"] = _color_from_value(profile.get("hair_color", HAIR_COLORS[0]), HAIR_COLORS[0])
-	profile["shoe_color"] = _color_from_value(profile.get("shoe_color", SHOE_COLORS[0]), SHOE_COLORS[0])
-	return profile
-
-
-func _profile_to_save(profile: Dictionary) -> Dictionary:
-	var saved := profile.duplicate(true)
-	saved["cloth_color"] = _color_to_html(profile.get("cloth_color", CLOTH_COLORS[0]))
-	saved["skin_color"] = _color_to_html(profile.get("skin_color", SKIN_COLORS[0]))
-	saved["hair_color"] = _color_to_html(profile.get("hair_color", HAIR_COLORS[0]))
-	saved["shoe_color"] = _color_to_html(profile.get("shoe_color", SHOE_COLORS[0]))
-	return saved
+	return ResidentProfileStoreScript.load_profiles(STARTING_RESIDENT_COUNT)
 
 
 func _save_residents() -> void:
-	# Node 参照は保存せず、住人のプロフィール、外見、好み、関係値、所持品だけを JSON 化する。
-	var save_data := []
-	for resident in residents:
-		var profile: Dictionary = resident["profile"]
-		save_data.append(_profile_to_save(profile))
-
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file == null:
-		return
-	file.store_string(JSON.stringify(save_data, "\t"))
-
-
-func _color_to_html(value) -> String:
-	if typeof(value) == TYPE_COLOR:
-		var color: Color = value
-		return "#" + color.to_html(false)
-	return String(value)
-
-
-func _color_from_value(value, fallback: Color) -> Color:
-	if typeof(value) == TYPE_COLOR:
-		return value
-	if typeof(value) == TYPE_STRING:
-		var text := String(value)
-		if text.is_empty():
-			return fallback
-		return Color.html(text)
-	return fallback
-
-
-func _ensure_dict(value) -> Dictionary:
-	if value is Dictionary:
-		return value
-	return {}
-
-
-func _ensure_inventory(value) -> Dictionary:
-	var inventory := _ensure_dict(value)
-	for category in GIFT_CATEGORY_KEYS:
-		if not inventory.has(category) or not (inventory[category] is Array):
-			inventory[category] = []
-	return inventory
+	ResidentProfileStoreScript.save_residents(residents)
 
 
 func _ensure_all_relationships() -> void:
@@ -1809,7 +1510,7 @@ func _gift_items_for_category(category: String) -> Array:
 
 
 func _add_inventory_item(profile: Dictionary, category: String, item_name: String) -> void:
-	var inventory := _ensure_inventory(profile.get("inventory", {}))
+	var inventory := ResidentProfileStoreScript.ensure_inventory(profile.get("inventory", {}))
 	var list: Array = inventory.get(category, [])
 	list.append(item_name)
 	inventory[category] = list
