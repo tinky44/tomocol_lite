@@ -103,6 +103,7 @@ var creator_value_slider: HSlider
 var creator_section_buttons: Array = []
 var creator_axis_buttons: Array = []
 var refreshing_creator_slider := false
+var dev_force_walk_pose := false
 
 
 func _ready() -> void:
@@ -121,8 +122,10 @@ func _process(delta: float) -> void:
 		return
 
 	_handle_camera_input(delta)
-	_handle_player_input(delta)
-	_update_residents(delta)
+	var selected_is_walking := _handle_player_input(delta)
+	if dev_force_walk_pose:
+		selected_is_walking = true
+	_update_residents(delta, selected_is_walking)
 	_update_selection_marker()
 	_update_hud()
 	_update_camera()
@@ -183,12 +186,21 @@ func _build_world() -> void:
 
 func _apply_dev_launch_args() -> void:
 	var args := OS.get_cmdline_user_args()
-	if not args.has("--creator-capture"):
+	if args.has("--walk-capture"):
+		selected_index = 0
+		dev_force_walk_pose = true
+
+	if not args.has("--creator-capture") and not args.has("--capture-back"):
 		return
 
 	# スクショ・動画確認用。通常起動では通らず、UI と顔パーツの崩れを固定画面で確認できます。
 	selected_index = 0
 	_enter_creator()
+	var capture_node: Node3D = residents[selected_index]["node"] as Node3D
+	if args.has("--capture-back"):
+		capture_node.rotation_degrees.y = 180.0
+	if dev_force_walk_pose:
+		_set_resident_walking(capture_node, true, 1.45)
 	edit_section = EDIT_SECTION_FACE
 	edit_axis = FACE_AXIS_EYE_SIZE
 	_refresh_creator_ui()
@@ -220,11 +232,11 @@ func _handle_player_input(delta: float) -> bool:
 		if Input.is_key_pressed(KEY_N):
 			_add_new_resident(true)
 			input_cooldown = 0.30
-			return true
+			return false
 		elif Input.is_key_pressed(KEY_F):
 			_enter_creator()
 			input_cooldown = 0.20
-			return true
+			return false
 		elif edit_mode and Input.is_key_pressed(KEY_R):
 			_cycle_edit_section()
 			input_cooldown = 0.18
@@ -242,7 +254,7 @@ func _handle_player_input(delta: float) -> bool:
 		elif Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE):
 			if _try_primary_action():
 				input_cooldown = 0.35
-				return true
+				return false
 
 	if edit_mode:
 		_handle_edit_input(delta)
@@ -507,6 +519,7 @@ func _enter_creator() -> void:
 	node.position = Vector3.ZERO
 	node.rotation = Vector3.ZERO
 	node.scale = Vector3.ONE * HOUSE_RESIDENT_SCALE
+	_set_resident_walking(node, false)
 	_set_problem_marker(selected_index, false)
 	_refresh_creator_ui()
 	_record_event("%s のキャラメイクを開いた。" % String(profile.get("name", "Resident")))
@@ -519,6 +532,7 @@ func _exit_creator() -> void:
 	var node: Node3D = residents[selected_index]["node"] as Node3D
 	creator_mode = false
 	edit_mode = false
+	_set_resident_walking(node, false)
 	creator_root.visible = false
 	if creator_canvas != null:
 		creator_canvas.visible = false
@@ -685,6 +699,7 @@ func _place_resident(index: int, position: Vector3, visual_scale: float, visible
 	node.position = position
 	node.rotation = Vector3.ZERO
 	node.scale = Vector3.ONE * visual_scale
+	_set_resident_walking(node, false)
 	resident["state"] = "idle"
 	resident["target"] = node.position
 	resident["timer"] = rng.randf_range(0.4, 1.6)
@@ -722,18 +737,18 @@ func _select_resident(step: int) -> void:
 			return
 
 
-func _update_residents(delta: float) -> void:
+func _update_residents(delta: float, selected_is_walking := false) -> void:
 	for index in range(residents.size()):
 		if not _is_resident_active(index):
 			continue
 		_update_problem_timer(index, delta)
 		if index == selected_index:
-			_hold_selected_resident()
+			_hold_selected_resident(selected_is_walking)
 			continue
 		_update_resident(index, delta)
 
 
-func _hold_selected_resident() -> void:
+func _hold_selected_resident(is_walking := false) -> void:
 	if not _is_resident_active(selected_index):
 		return
 
@@ -749,6 +764,7 @@ func _hold_selected_resident() -> void:
 	resident["timer"] = 9999.0
 	residents[selected_index] = resident
 	_set_chat_marker(selected_index, false)
+	_set_resident_walking(node, is_walking, 1.45)
 
 
 func _release_selected_resident(index: int) -> void:
@@ -764,6 +780,7 @@ func _release_selected_resident(index: int) -> void:
 	resident["target"] = node.position
 	resident["timer"] = rng.randf_range(0.8, 2.0)
 	residents[index] = resident
+	_set_resident_walking(node, false)
 
 
 func _is_resident_active(index: int) -> bool:
@@ -777,12 +794,13 @@ func _is_resident_active(index: int) -> bool:
 func _update_resident(index: int, delta: float) -> void:
 	var resident: Dictionary = residents[index]
 	var state := String(resident.get("state", "idle"))
+	var node: Node3D = resident["node"] as Node3D
 
 	if state == "chat":
+		_set_resident_walking(node, false)
 		var partner := int(resident.get("partner", -1))
 		if partner >= 0 and partner < residents.size():
 			var partner_node: Node3D = residents[partner]["node"] as Node3D
-			var node: Node3D = resident["node"] as Node3D
 			_face_position(node, partner_node.global_position)
 		resident["timer"] = float(resident.get("timer", 0.0)) - delta
 		residents[index] = resident
@@ -791,6 +809,7 @@ func _update_resident(index: int, delta: float) -> void:
 		return
 
 	if state == "fight":
+		_set_resident_walking(node, false)
 		resident["timer"] = float(resident.get("timer", 0.0)) - delta
 		residents[index] = resident
 		if float(resident["timer"]) <= 0.0:
@@ -798,7 +817,7 @@ func _update_resident(index: int, delta: float) -> void:
 		return
 
 	if state == "visit":
-		var visit_node: Node3D = resident["node"] as Node3D
+		var visit_node := node
 		var visit_target: Vector3 = resident.get("target", visit_node.position)
 		if _move_resident_toward(visit_node, visit_target, float(resident.get("speed", 0.7)), delta):
 			resident["state"] = "idle"
@@ -807,7 +826,6 @@ func _update_resident(index: int, delta: float) -> void:
 		return
 
 	if state == "meet":
-		var node: Node3D = resident["node"] as Node3D
 		var target: Vector3 = resident.get("target", node.position)
 		var arrived := _move_resident_toward(node, target, float(resident.get("speed", 0.7)), delta)
 		resident["timer"] = float(resident.get("timer", 0.0)) - delta
@@ -825,7 +843,6 @@ func _update_resident(index: int, delta: float) -> void:
 		return
 
 	if state == "wander":
-		var node: Node3D = resident["node"] as Node3D
 		var target: Vector3 = resident.get("target", node.position)
 		if _move_resident_toward(node, target, float(resident.get("speed", 0.65)), delta):
 			resident["state"] = "idle"
@@ -834,6 +851,7 @@ func _update_resident(index: int, delta: float) -> void:
 		return
 
 	if state == "manual":
+		_set_resident_walking(node, false)
 		resident["timer"] = float(resident.get("timer", 0.0)) - delta
 		if float(resident["timer"]) <= 0.0:
 			resident["state"] = "idle"
@@ -841,6 +859,7 @@ func _update_resident(index: int, delta: float) -> void:
 		residents[index] = resident
 		return
 
+	_set_resident_walking(node, false)
 	resident["timer"] = float(resident.get("timer", 0.0)) - delta
 	residents[index] = resident
 	if float(resident["timer"]) <= 0.0:
@@ -1000,6 +1019,8 @@ func _begin_chat_pair(a: int, b: int) -> void:
 
 	_face_position(a_node, b_node.global_position)
 	_face_position(b_node, a_node.global_position)
+	_set_resident_walking(a_node, false)
+	_set_resident_walking(b_node, false)
 	_set_chat_marker(a, true)
 	_set_chat_marker(b, true)
 
@@ -1042,6 +1063,8 @@ func _start_fight_pair(a: int, b: int) -> void:
 	b_resident["profile"] = b_profile
 	residents[a] = a_resident
 	residents[b] = b_resident
+	_set_resident_walking(a_resident["node"] as Node3D, false)
+	_set_resident_walking(b_resident["node"] as Node3D, false)
 	_set_chat_marker(a, false)
 	_set_chat_marker(b, false)
 	_refresh_resident_markers(a)
@@ -1060,10 +1083,12 @@ func _break_partner(index: int) -> void:
 
 func _clear_social_state(index: int) -> void:
 	var resident: Dictionary = residents[index]
+	var node: Node3D = resident["node"] as Node3D
 	resident["state"] = "idle"
 	resident["partner"] = -1
 	resident["timer"] = rng.randf_range(0.5, 1.7)
 	residents[index] = resident
+	_set_resident_walking(node, false)
 	_set_chat_marker(index, false)
 
 
@@ -1072,13 +1097,21 @@ func _move_resident_toward(node: Node3D, target: Vector3, speed: float, delta: f
 	offset.y = 0.0
 	var distance := offset.length()
 	if distance <= 0.06:
+		_set_resident_walking(node, false, speed)
 		return true
 
 	var step := minf(speed * delta, distance)
 	var movement := offset.normalized()
 	node.position = _clamp_current_position(node.position + movement * step)
 	_face_position(node, node.global_position + movement)
-	return distance <= 0.12
+	var arrived := distance <= 0.12
+	_set_resident_walking(node, not arrived, speed)
+	return arrived
+
+
+func _set_resident_walking(node: Node3D, active: bool, speed := 1.0) -> void:
+	if node != null and node.has_method("set_walking"):
+		node.call("set_walking", active, speed)
 
 
 func _face_position(node: Node3D, target: Vector3) -> void:

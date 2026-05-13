@@ -14,13 +14,31 @@ const HEAD_SCALE_Y := 1.03
 const HEAD_SCALE_Z := 0.92
 const FACE_PART_SURFACE_LIFT := 0.012
 const EYE_VISIBLE_SCALE := 1.08
+const WALK_LEG_SWING_DEGREES := 8.0
+const WALK_ARM_SWING_DEGREES := 7.0
+const WALK_BLEND_SPEED := 7.5
+const WALK_CYCLE_BASE_SPEED := 5.4
+const WALK_CYCLE_SPEED_SCALE := 1.35
+
+var avatar_height := DEFAULT_HEIGHT
+var walk_cycle := 0.0
+var walk_blend := 0.0
+var walk_target_blend := 0.0
+var walk_speed := 0.0
+var part_nodes := {}
+var part_rest_positions := {}
+var part_rest_rotations := {}
 
 
 func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT) -> void:
 	for child in get_children():
 		child.free()
+	part_nodes.clear()
+	part_rest_positions.clear()
+	part_rest_rotations.clear()
 
 	var height: float = float(profile.get("height", DEFAULT_HEIGHT))
+	avatar_height = height
 	var head_ratio: float = float(profile.get("head_ratio", 0.24))
 	var torso_ratio: float = float(profile.get("torso_ratio", 0.50))
 	var leg_bias: float = float(profile.get("leg_bias", 0.0))
@@ -61,6 +79,20 @@ func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT)
 
 	if height > door_height:
 		_add_part("Door Height Reference", _box_mesh(Vector3(shoulder_width * 1.16, 0.026, 0.026)), Vector3(0.0, door_height, 0.0), Color(0.96, 0.86, 0.34))
+	_apply_walk_pose()
+
+
+func set_walking(active: bool, speed := 1.0) -> void:
+	walk_target_blend = 1.0 if active else 0.0
+	walk_speed = clampf(float(speed), 0.0, 2.0)
+
+
+func _process(delta: float) -> void:
+	walk_blend = move_toward(walk_blend, walk_target_blend, WALK_BLEND_SPEED * delta)
+	if walk_blend > 0.001:
+		var speed_ratio := clampf(walk_speed / 1.45, 0.45, 1.60)
+		walk_cycle += delta * WALK_CYCLE_BASE_SPEED * lerpf(0.78, WALK_CYCLE_SPEED_SCALE, speed_ratio)
+	_apply_walk_pose()
 
 
 func head_position(profile: Dictionary) -> Vector3:
@@ -140,13 +172,20 @@ func _add_outfit_detail(outfit_type: String, cloth_color: Color, leg_height: flo
 func _add_hair_parts(profile: Dictionary, head_y: float, head_radius: float, hair_color: Color) -> void:
 	var hair_style := int(profile.get("hair_style", 0))
 	var hair_volume: float = float(profile.get("hair_volume", 1.0))
-	var cap_radius := head_radius * 1.02 * hair_volume
-	var front_z := head_radius * 0.74
-	_add_ellipsoid_part("Hair Crown", cap_radius, Vector3(0.0, head_y + head_radius * 0.20, -head_radius * 0.23), hair_color, Vector3(1.03, 0.94, 0.54))
+	var cap_radius := head_radius * 1.05 * hair_volume
+	var front_z := head_radius * 0.96
+	_add_ellipsoid_part("Hair Crown", cap_radius, Vector3(0.0, head_y + head_radius * 0.22, -head_radius * 0.06), hair_color, Vector3(1.08, 0.90, 0.82))
+	_add_ellipsoid_part("Front Hair Mass", head_radius * 0.36 * hair_volume, Vector3(0.0, head_y + head_radius * 0.31, front_z * 0.93), hair_color, Vector3(1.55, 0.62, 0.32))
+	_add_ellipsoid_part("Back Hair Cover", head_radius * 0.66 * hair_volume, Vector3(0.0, head_y - head_radius * 0.03, -head_radius * 0.72), hair_color, Vector3(1.05, 1.22, 0.44))
+	_add_part("Nape Hair", _capsule_mesh(head_radius * 0.82, head_radius * 0.19 * hair_volume), Vector3(0.0, head_y - head_radius * 0.42, -head_radius * 0.66), hair_color, Vector3(8.0, 0.0, 0.0))
+	_add_part("Front Hairline", _capsule_mesh(head_radius * 1.03, head_radius * 0.075 * hair_volume), Vector3(0.0, head_y + head_radius * 0.34, front_z * 0.95), hair_color, Vector3(0.0, 0.0, 90.0), Vector3(1.0, 1.0, 0.62))
 	# 前髪は小さな楕円を重ねています。顔側は平たい板を使わず、頭の曲面上へ直接パーツを置きます。
-	_add_ellipsoid_part("Bang Center", head_radius * 0.15 * hair_volume, Vector3(0.0, head_y + head_radius * 0.48, front_z), hair_color, Vector3(0.82, 0.92, 0.28))
-	_add_ellipsoid_part("Bang Left", head_radius * 0.13 * hair_volume, Vector3(-head_radius * 0.25, head_y + head_radius * 0.43, front_z * 0.98), hair_color, Vector3(0.78, 0.88, 0.26), Vector3(0.0, 0.0, -14.0))
-	_add_ellipsoid_part("Bang Right", head_radius * 0.13 * hair_volume, Vector3(head_radius * 0.25, head_y + head_radius * 0.43, front_z * 0.98), hair_color, Vector3(0.78, 0.88, 0.26), Vector3(0.0, 0.0, 14.0))
+	_add_ellipsoid_part("Bang Fill", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.31, front_z * 1.01), hair_color, Vector3(0.82, 0.72, 0.30))
+	_add_ellipsoid_part("Bang Center", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.39, front_z), hair_color, Vector3(0.76, 1.08, 0.30))
+	_add_ellipsoid_part("Bang Left", head_radius * 0.16 * hair_volume, Vector3(-head_radius * 0.24, head_y + head_radius * 0.35, front_z * 0.99), hair_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, -13.0))
+	_add_ellipsoid_part("Bang Right", head_radius * 0.16 * hair_volume, Vector3(head_radius * 0.24, head_y + head_radius * 0.35, front_z * 0.99), hair_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, 13.0))
+	_add_part("Left Side Hair Base", _capsule_mesh(head_radius * 0.68, head_radius * 0.13 * hair_volume), Vector3(-head_radius * 0.62, head_y - head_radius * 0.08, -head_radius * 0.02), hair_color, Vector3(2.0, 0.0, -7.0))
+	_add_part("Right Side Hair Base", _capsule_mesh(head_radius * 0.68, head_radius * 0.13 * hair_volume), Vector3(head_radius * 0.62, head_y - head_radius * 0.08, -head_radius * 0.02), hair_color, Vector3(2.0, 0.0, 7.0))
 
 	if hair_style == 1:
 		_add_part("Long Back Hair", _capsule_mesh(head_radius * 1.65, head_radius * 0.34 * hair_volume), Vector3(0.0, head_y - head_radius * 0.70, -head_radius * 0.62), hair_color, Vector3(6.0, 0.0, 0.0))
@@ -164,7 +203,9 @@ func _add_hair_parts(profile: Dictionary, head_y: float, head_radius: float, hai
 	elif hair_style == 4:
 		_add_part("Bob Hair Left", _capsule_mesh(head_radius * 0.88, head_radius * 0.18 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.26, head_radius * 0.08), hair_color, Vector3(3.0, 0.0, -6.0))
 		_add_part("Bob Hair Right", _capsule_mesh(head_radius * 0.88, head_radius * 0.18 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.26, head_radius * 0.08), hair_color, Vector3(3.0, 0.0, 6.0))
+		_add_part("Bob Back Hair", _capsule_mesh(head_radius * 0.78, head_radius * 0.25 * hair_volume), Vector3(0.0, head_y - head_radius * 0.24, -head_radius * 0.72), hair_color, Vector3(5.0, 0.0, 0.0))
 	else:
+		_add_part("Short Back Hair", _capsule_mesh(head_radius * 0.58, head_radius * 0.20 * hair_volume), Vector3(0.0, head_y - head_radius * 0.18, -head_radius * 0.72), hair_color, Vector3(5.0, 0.0, 0.0))
 		_add_part("Short Side Hair Left", _capsule_mesh(head_radius * 0.40, head_radius * 0.10 * hair_volume), Vector3(-head_radius * 0.58, head_y - head_radius * 0.02, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, -5.0))
 		_add_part("Short Side Hair Right", _capsule_mesh(head_radius * 0.40, head_radius * 0.10 * hair_volume), Vector3(head_radius * 0.58, head_y - head_radius * 0.02, head_radius * 0.10), hair_color, Vector3(0.0, 0.0, 5.0))
 
@@ -256,7 +297,48 @@ func _add_part(part_name: String, mesh: Mesh, local_position: Vector3, color: Co
 	instance.scale = local_scale
 	instance.material_override = _material(color)
 	add_child(instance)
+	part_nodes[part_name] = instance
+	part_rest_positions[part_name] = local_position
+	part_rest_rotations[part_name] = rotation_deg
 	return instance
+
+
+func _apply_walk_pose() -> void:
+	if part_nodes.is_empty():
+		return
+
+	var phase := sin(walk_cycle)
+	var opposite := -phase
+	var stride := avatar_height * 0.026
+	var foot_lift := avatar_height * 0.012
+	var hand_sway := avatar_height * 0.016
+	var hand_lift := avatar_height * 0.007
+	var left_lift := maxf(0.0, phase) * foot_lift
+	var right_lift := maxf(0.0, opposite) * foot_lift
+
+	_pose_part("Left Leg", Vector3(phase * WALK_LEG_SWING_DEGREES, 0.0, 0.0))
+	_pose_part("Right Leg", Vector3(opposite * WALK_LEG_SWING_DEGREES, 0.0, 0.0))
+	_pose_part("Left Sock", Vector3(phase * WALK_LEG_SWING_DEGREES, 0.0, 0.0), Vector3(0.0, left_lift, phase * stride * 0.42))
+	_pose_part("Right Sock", Vector3(opposite * WALK_LEG_SWING_DEGREES, 0.0, 0.0), Vector3(0.0, right_lift, opposite * stride * 0.42))
+	_pose_part("Left Shoe", Vector3(phase * WALK_LEG_SWING_DEGREES * 0.72, 0.0, 0.0), Vector3(0.0, left_lift, phase * stride))
+	_pose_part("Right Shoe", Vector3(opposite * WALK_LEG_SWING_DEGREES * 0.72, 0.0, 0.0), Vector3(0.0, right_lift, opposite * stride))
+
+	_pose_part("Left Sleeve", Vector3(opposite * WALK_ARM_SWING_DEGREES, 0.0, 0.0))
+	_pose_part("Right Sleeve", Vector3(phase * WALK_ARM_SWING_DEGREES, 0.0, 0.0))
+	_pose_part("Left Forearm", Vector3(opposite * WALK_ARM_SWING_DEGREES * 1.12, 0.0, 0.0), Vector3(0.0, phase * hand_lift * 0.45, opposite * hand_sway * 0.45))
+	_pose_part("Right Forearm", Vector3(phase * WALK_ARM_SWING_DEGREES * 1.12, 0.0, 0.0), Vector3(0.0, opposite * hand_lift * 0.45, phase * hand_sway * 0.45))
+	_pose_part("Left Hand", Vector3.ZERO, Vector3(0.0, phase * hand_lift, opposite * hand_sway))
+	_pose_part("Right Hand", Vector3.ZERO, Vector3(0.0, opposite * hand_lift, phase * hand_sway))
+
+
+func _pose_part(part_name: String, rotation_offset: Vector3, position_offset := Vector3.ZERO) -> void:
+	if not part_nodes.has(part_name):
+		return
+	var part := part_nodes[part_name] as Node3D
+	if part == null:
+		return
+	part.rotation_degrees = part_rest_rotations[part_name] + rotation_offset * walk_blend
+	part.position = part_rest_positions[part_name] + position_offset * walk_blend
 
 
 func _box_mesh(size: Vector3) -> BoxMesh:
