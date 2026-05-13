@@ -28,6 +28,10 @@ var walk_speed := 0.0
 var part_nodes := {}
 var part_rest_positions := {}
 var part_rest_rotations := {}
+var left_leg_pivot := Vector3.ZERO
+var right_leg_pivot := Vector3.ZERO
+var left_arm_pivot := Vector3.ZERO
+var right_arm_pivot := Vector3.ZERO
 
 
 func build_from_profile(profile: Dictionary, door_height := DEFAULT_DOOR_HEIGHT) -> void:
@@ -115,6 +119,8 @@ func _add_lower_body(outfit_type: String, cloth_color: Color, skin_color: Color,
 	var shoe_size := Vector3(leg_radius * 2.95, maxf(height * 0.038, 0.046), leg_radius * 4.40)
 	var shoe_y := maxf(height * 0.019, 0.024)
 	var foot_gap := hip_width * 0.26
+	left_leg_pivot = Vector3(-foot_gap, leg_height, 0.0)
+	right_leg_pivot = Vector3(foot_gap, leg_height, 0.0)
 	_add_part("Left Leg", _capsule_mesh(leg_height * 0.92, leg_radius), Vector3(-foot_gap, leg_y + leg_height * 0.035, 0.0), leg_color)
 	_add_part("Right Leg", _capsule_mesh(leg_height * 0.92, leg_radius), Vector3(foot_gap, leg_y + leg_height * 0.035, 0.0), leg_color)
 	_add_part("Left Sock", _capsule_mesh(maxf(height * 0.07, 0.07), leg_radius * 1.04), Vector3(-foot_gap, shoe_y + height * 0.055, 0.0), Color(0.94, 0.92, 0.84))
@@ -144,6 +150,8 @@ func _add_arms(cloth_color: Color, skin_color: Color, height: float, leg_height:
 	var forearm_y := sleeve_y - sleeve_length * 0.44 - forearm_length * 0.43
 	var hand_y := forearm_y - forearm_length * 0.54
 	var sleeve_z := torso_radius * 0.03
+	left_arm_pivot = Vector3(-arm_x * 0.86, arm_root_y + sleeve_length * 0.34, sleeve_z)
+	right_arm_pivot = Vector3(arm_x * 0.86, arm_root_y + sleeve_length * 0.34, sleeve_z)
 	_add_part("Left Sleeve", _capsule_mesh(sleeve_length, arm_radius * 1.12), Vector3(-arm_x, sleeve_y, sleeve_z), cloth_color.lightened(0.04), Vector3(0.0, 0.0, -ARM_SPREAD_DEGREES))
 	_add_part("Right Sleeve", _capsule_mesh(sleeve_length, arm_radius * 1.12), Vector3(arm_x, sleeve_y, sleeve_z), cloth_color.lightened(0.04), Vector3(0.0, 0.0, ARM_SPREAD_DEGREES))
 	_add_part("Left Forearm", _capsule_mesh(forearm_length, arm_radius * 0.92), Vector3(-arm_x * 1.16, forearm_y, sleeve_z), skin_color.darkened(0.025), Vector3(0.0, 0.0, -ARM_SPREAD_DEGREES * 0.42))
@@ -316,36 +324,40 @@ func _apply_walk_pose() -> void:
 
 	var phase := sin(walk_cycle)
 	var opposite := -phase
-	var stride := avatar_height * 0.026
-	var foot_lift := avatar_height * 0.012
-	var hand_sway := avatar_height * 0.016
-	var hand_lift := avatar_height * 0.007
-	var left_lift := maxf(0.0, phase) * foot_lift
-	var right_lift := maxf(0.0, opposite) * foot_lift
+	var left_leg_rotation := Vector3(phase * WALK_LEG_SWING_DEGREES, 0.0, 0.0)
+	var right_leg_rotation := Vector3(opposite * WALK_LEG_SWING_DEGREES, 0.0, 0.0)
+	var left_arm_rotation := Vector3(opposite * WALK_ARM_SWING_DEGREES, 0.0, 0.0)
+	var right_arm_rotation := Vector3(phase * WALK_ARM_SWING_DEGREES, 0.0, 0.0)
 
-	_pose_part("Left Leg", Vector3(phase * WALK_LEG_SWING_DEGREES, 0.0, 0.0))
-	_pose_part("Right Leg", Vector3(opposite * WALK_LEG_SWING_DEGREES, 0.0, 0.0))
-	_pose_part("Left Sock", Vector3(phase * WALK_LEG_SWING_DEGREES, 0.0, 0.0), Vector3(0.0, left_lift, phase * stride * 0.42))
-	_pose_part("Right Sock", Vector3(opposite * WALK_LEG_SWING_DEGREES, 0.0, 0.0), Vector3(0.0, right_lift, opposite * stride * 0.42))
-	_pose_part("Left Shoe", Vector3(phase * WALK_LEG_SWING_DEGREES * 0.72, 0.0, 0.0), Vector3(0.0, left_lift, phase * stride))
-	_pose_part("Right Shoe", Vector3(opposite * WALK_LEG_SWING_DEGREES * 0.72, 0.0, 0.0), Vector3(0.0, right_lift, opposite * stride))
+	_pose_part_around_pivot("Left Leg", left_leg_pivot, left_leg_rotation)
+	_pose_part_around_pivot("Left Sock", left_leg_pivot, left_leg_rotation)
+	_pose_part_around_pivot("Left Shoe", left_leg_pivot, left_leg_rotation)
+	_pose_part_around_pivot("Right Leg", right_leg_pivot, right_leg_rotation)
+	_pose_part_around_pivot("Right Sock", right_leg_pivot, right_leg_rotation)
+	_pose_part_around_pivot("Right Shoe", right_leg_pivot, right_leg_rotation)
 
-	_pose_part("Left Sleeve", Vector3(opposite * WALK_ARM_SWING_DEGREES, 0.0, 0.0))
-	_pose_part("Right Sleeve", Vector3(phase * WALK_ARM_SWING_DEGREES, 0.0, 0.0))
-	_pose_part("Left Forearm", Vector3(opposite * WALK_ARM_SWING_DEGREES * 1.12, 0.0, 0.0), Vector3(0.0, phase * hand_lift * 0.45, opposite * hand_sway * 0.45))
-	_pose_part("Right Forearm", Vector3(phase * WALK_ARM_SWING_DEGREES * 1.12, 0.0, 0.0), Vector3(0.0, opposite * hand_lift * 0.45, phase * hand_sway * 0.45))
-	_pose_part("Left Hand", Vector3.ZERO, Vector3(0.0, phase * hand_lift, opposite * hand_sway))
-	_pose_part("Right Hand", Vector3.ZERO, Vector3(0.0, opposite * hand_lift, phase * hand_sway))
+	_pose_part_around_pivot("Left Sleeve", left_arm_pivot, left_arm_rotation)
+	_pose_part_around_pivot("Left Forearm", left_arm_pivot, left_arm_rotation)
+	_pose_part_around_pivot("Left Hand", left_arm_pivot, left_arm_rotation)
+	_pose_part_around_pivot("Right Sleeve", right_arm_pivot, right_arm_rotation)
+	_pose_part_around_pivot("Right Forearm", right_arm_pivot, right_arm_rotation)
+	_pose_part_around_pivot("Right Hand", right_arm_pivot, right_arm_rotation)
 
 
-func _pose_part(part_name: String, rotation_offset: Vector3, position_offset := Vector3.ZERO) -> void:
+func _pose_part_around_pivot(part_name: String, pivot: Vector3, rotation_offset: Vector3) -> void:
 	if not part_nodes.has(part_name):
 		return
 	var part := part_nodes[part_name] as Node3D
 	if part == null:
 		return
-	part.rotation_degrees = part_rest_rotations[part_name] + rotation_offset * walk_blend
-	part.position = part_rest_positions[part_name] + position_offset * walk_blend
+	var blended_rotation := rotation_offset * walk_blend
+	var rest_position: Vector3 = part_rest_positions[part_name]
+	var pivot_offset := rest_position - pivot
+	pivot_offset = pivot_offset.rotated(Vector3.RIGHT, deg_to_rad(blended_rotation.x))
+	pivot_offset = pivot_offset.rotated(Vector3.UP, deg_to_rad(blended_rotation.y))
+	pivot_offset = pivot_offset.rotated(Vector3.FORWARD, deg_to_rad(blended_rotation.z))
+	part.rotation_degrees = part_rest_rotations[part_name] + blended_rotation
+	part.position = pivot + pivot_offset
 
 
 func _box_mesh(size: Vector3) -> BoxMesh:
