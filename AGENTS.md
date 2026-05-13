@@ -31,10 +31,12 @@ Godot は 4.6 系を想定します。PowerShell からの検証は直接 Godot 
 powershell -ExecutionPolicy Bypass -File .\tools\run_godot.ps1 -Headless -Quit
 ```
 
-Godot の場所を明示する場合:
+Godot の場所を明示する場合は、ローカルの `.env` に書くか、`TOMOCOL_GODOT_EXE` を設定します。`.env` はコミットしません。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_godot.ps1 -GodotExe "$env:USERPROFILE\Downloads\Godot_v4.6.2-stable_win64.exe" -Headless -Quit
+Copy-Item .env.example .env
+# .env の TOMOCOL_GODOT_EXE をローカル環境に合わせて編集
+powershell -ExecutionPolicy Bypass -File .\tools\run_godot.ps1 -Headless -Quit
 ```
 
 `tools/run_godot.ps1` は `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP` を `artifacts/godot-runtime` に逃がします。これにより `user://logs` などの作成失敗を避けます。

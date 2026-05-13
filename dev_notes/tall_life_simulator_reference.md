@@ -1,6 +1,6 @@
 # tall_life_simulator 参考仕様メモ
 
-このメモは、過去作品 `C:\Users\nnshi\develop\tall_life_simulator` を今後 `tomocol_lite` の参考にするときの入口です。丸ごとの移植ではなく、設計判断や分割方針を再利用するためにまとめます。
+このメモは、過去作品の別リポジトリ `tall_life_simulator` を今後 `tomocol_lite` の参考にするときの入口です。丸ごとの移植ではなく、設計判断や分割方針を再利用するためにまとめます。
 
 ## 参照したい設計
 
