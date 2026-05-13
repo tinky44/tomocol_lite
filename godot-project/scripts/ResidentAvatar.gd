@@ -172,18 +172,21 @@ func _add_outfit_detail(outfit_type: String, cloth_color: Color, leg_height: flo
 func _add_hair_parts(profile: Dictionary, head_y: float, head_radius: float, hair_color: Color) -> void:
 	var hair_style := int(profile.get("hair_style", 0))
 	var hair_volume: float = float(profile.get("hair_volume", 1.0))
+	var fringe_color := hair_color.darkened(0.18)
 	var cap_radius := head_radius * 1.05 * hair_volume
 	var front_z := head_radius * 0.96
-	_add_ellipsoid_part("Hair Crown", cap_radius, Vector3(0.0, head_y + head_radius * 0.22, -head_radius * 0.06), hair_color, Vector3(1.08, 0.90, 0.82))
-	_add_ellipsoid_part("Front Hair Mass", head_radius * 0.36 * hair_volume, Vector3(0.0, head_y + head_radius * 0.31, front_z * 0.93), hair_color, Vector3(1.55, 0.62, 0.32))
+	_add_ellipsoid_part("Hair Crown", cap_radius, Vector3(0.0, head_y + head_radius * 0.22, head_radius * 0.02), hair_color, Vector3(1.08, 0.90, 0.92))
+	_add_ellipsoid_part("Front Hair Mass", head_radius * 0.38 * hair_volume, Vector3(0.0, head_y + head_radius * 0.30, front_z * 0.96), fringe_color, Vector3(1.55, 0.66, 0.34))
 	_add_ellipsoid_part("Back Hair Cover", head_radius * 0.66 * hair_volume, Vector3(0.0, head_y - head_radius * 0.03, -head_radius * 0.72), hair_color, Vector3(1.05, 1.22, 0.44))
 	_add_part("Nape Hair", _capsule_mesh(head_radius * 0.82, head_radius * 0.19 * hair_volume), Vector3(0.0, head_y - head_radius * 0.42, -head_radius * 0.66), hair_color, Vector3(8.0, 0.0, 0.0))
-	_add_part("Front Hairline", _capsule_mesh(head_radius * 1.03, head_radius * 0.075 * hair_volume), Vector3(0.0, head_y + head_radius * 0.34, front_z * 0.95), hair_color, Vector3(0.0, 0.0, 90.0), Vector3(1.0, 1.0, 0.62))
+	_add_part("Front Hairline", _capsule_mesh(head_radius * 1.03, head_radius * 0.075 * hair_volume), Vector3(0.0, head_y + head_radius * 0.34, front_z * 1.00), fringe_color, Vector3(0.0, 0.0, 90.0), Vector3(1.0, 1.0, 0.62))
 	# 前髪は小さな楕円を重ねています。顔側は平たい板を使わず、頭の曲面上へ直接パーツを置きます。
-	_add_ellipsoid_part("Bang Fill", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.31, front_z * 1.01), hair_color, Vector3(0.82, 0.72, 0.30))
-	_add_ellipsoid_part("Bang Center", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.39, front_z), hair_color, Vector3(0.76, 1.08, 0.30))
-	_add_ellipsoid_part("Bang Left", head_radius * 0.16 * hair_volume, Vector3(-head_radius * 0.24, head_y + head_radius * 0.35, front_z * 0.99), hair_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, -13.0))
-	_add_ellipsoid_part("Bang Right", head_radius * 0.16 * hair_volume, Vector3(head_radius * 0.24, head_y + head_radius * 0.35, front_z * 0.99), hair_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, 13.0))
+	_add_ellipsoid_part("Upper Bang Cover", head_radius * 0.27 * hair_volume, Vector3(0.0, head_y + head_radius * 0.42, front_z * 1.03), fringe_color, Vector3(1.48, 0.44, 0.24))
+	_add_ellipsoid_part("Bang Curtain", head_radius * 0.25 * hair_volume, Vector3(0.0, head_y + head_radius * 0.25, front_z * 1.05), fringe_color, Vector3(1.42, 0.54, 0.22))
+	_add_ellipsoid_part("Bang Fill", head_radius * 0.19 * hair_volume, Vector3(0.0, head_y + head_radius * 0.30, front_z * 1.08), fringe_color, Vector3(0.92, 0.76, 0.28))
+	_add_ellipsoid_part("Bang Center", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.39, front_z * 1.04), fringe_color, Vector3(0.76, 1.08, 0.30))
+	_add_ellipsoid_part("Bang Left", head_radius * 0.16 * hair_volume, Vector3(-head_radius * 0.24, head_y + head_radius * 0.35, front_z * 1.04), fringe_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, -13.0))
+	_add_ellipsoid_part("Bang Right", head_radius * 0.16 * hair_volume, Vector3(head_radius * 0.24, head_y + head_radius * 0.35, front_z * 1.04), fringe_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, 13.0))
 	_add_part("Left Side Hair Base", _capsule_mesh(head_radius * 0.68, head_radius * 0.13 * hair_volume), Vector3(-head_radius * 0.62, head_y - head_radius * 0.08, -head_radius * 0.02), hair_color, Vector3(2.0, 0.0, -7.0))
 	_add_part("Right Side Hair Base", _capsule_mesh(head_radius * 0.68, head_radius * 0.13 * hair_volume), Vector3(head_radius * 0.62, head_y - head_radius * 0.08, -head_radius * 0.02), hair_color, Vector3(2.0, 0.0, 7.0))
 

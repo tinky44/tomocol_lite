@@ -190,6 +190,15 @@ func _apply_dev_launch_args() -> void:
 		selected_index = 0
 		dev_force_walk_pose = true
 
+	if args.has("--room-capture"):
+		selected_index = 0
+		_enter_house()
+		camera_height = 1.68
+		camera_size = 2.35
+		camera_distance = 3.4
+		_update_camera()
+		return
+
 	if not args.has("--creator-capture") and not args.has("--capture-back"):
 		return
 
