@@ -6,6 +6,7 @@
 .godot/
 *.import
 *.translation
+!godot-project/fonts/*.otf.import
 
 # Runtime and generated artifacts
 artifacts/godot-runtime/

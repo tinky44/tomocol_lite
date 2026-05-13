@@ -3,6 +3,7 @@ extends Node3D
 const GameDataScript := preload("res://scripts/GameData.gd")
 const ResidentProfileStoreScript := preload("res://scripts/ResidentProfileStore.gd")
 const ResidentAvatarScript := preload("res://scripts/ResidentAvatar.gd")
+const JAPANESE_UI_FONT := preload("res://fonts/NotoSansCJKjp-Regular.otf")
 
 const ROOM_WIDTH := GameDataScript.ROOM_WIDTH
 const ROOM_DEPTH := GameDataScript.ROOM_DEPTH
@@ -1804,9 +1805,7 @@ func _add_hud() -> void:
 	canvas.name = "Resident HUD"
 	resident_label = Label.new()
 	resident_label.position = Vector2(16.0, 14.0)
-	var japanese_font := SystemFont.new()
-	japanese_font.font_names = ["Yu Gothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP"]
-	resident_label.add_theme_font_override("font", japanese_font)
+	resident_label.add_theme_font_override("font", JAPANESE_UI_FONT)
 	resident_label.add_theme_color_override("font_color", Color(0.10, 0.12, 0.14))
 	resident_label.add_theme_color_override("font_shadow_color", Color(1.0, 1.0, 1.0, 0.82))
 	resident_label.add_theme_constant_override("shadow_offset_x", 1)

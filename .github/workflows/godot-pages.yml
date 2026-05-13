@@ -53,10 +53,13 @@ jobs:
           cd ..
           cp docs/index.html build/web/index.html
           cp docs/play.html build/web/play.html
+          mkdir -p build/web/licenses
+          cp godot-project/fonts/LICENSE_OFL.txt build/web/licenses/NotoSansCJKjp-Regular-LICENSE_OFL.txt
           touch build/web/.nojekyll
           test -f build/web/game.html
           test -f build/web/game.wasm
           test -f build/web/game.pck
+          test -f build/web/licenses/NotoSansCJKjp-Regular-LICENSE_OFL.txt
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
