@@ -13,7 +13,7 @@ const HEAD_SCALE_X := 0.96
 const HEAD_SCALE_Y := 1.03
 const HEAD_SCALE_Z := 0.92
 const FACE_PART_SURFACE_LIFT := 0.012
-const EYE_VISIBLE_SCALE := 1.08
+const EYE_VISIBLE_SCALE := 1.18
 const WALK_LEG_SWING_DEGREES := 8.0
 const WALK_ARM_SWING_DEGREES := 7.0
 const WALK_BLEND_SPEED := 7.5
@@ -172,21 +172,20 @@ func _add_outfit_detail(outfit_type: String, cloth_color: Color, leg_height: flo
 func _add_hair_parts(profile: Dictionary, head_y: float, head_radius: float, hair_color: Color) -> void:
 	var hair_style := int(profile.get("hair_style", 0))
 	var hair_volume: float = float(profile.get("hair_volume", 1.0))
-	var fringe_color := hair_color.darkened(0.18)
+	var fringe_color := hair_color.darkened(0.12)
 	var cap_radius := head_radius * 1.05 * hair_volume
 	var front_z := head_radius * 0.96
-	_add_ellipsoid_part("Hair Crown", cap_radius, Vector3(0.0, head_y + head_radius * 0.22, head_radius * 0.02), hair_color, Vector3(1.08, 0.90, 0.92))
-	_add_ellipsoid_part("Front Hair Mass", head_radius * 0.38 * hair_volume, Vector3(0.0, head_y + head_radius * 0.30, front_z * 0.96), fringe_color, Vector3(1.55, 0.66, 0.34))
+	_add_ellipsoid_part("Hair Crown", cap_radius, Vector3(0.0, head_y + head_radius * 0.30, 0.0), hair_color, Vector3(1.08, 0.72, 0.90))
+	_add_ellipsoid_part("Forehead Hair Cap", head_radius * 0.24 * hair_volume, Vector3(0.0, head_y + head_radius * 0.27, front_z * 0.96), fringe_color, Vector3(1.90, 0.34, 0.15))
+	_add_ellipsoid_part("Front Left Hair Sweep", head_radius * 0.17 * hair_volume, Vector3(-head_radius * 0.22, head_y + head_radius * 0.22, front_z * 0.96), fringe_color, Vector3(0.92, 0.62, 0.14), Vector3(0.0, 0.0, -12.0))
+	_add_ellipsoid_part("Front Right Hair Sweep", head_radius * 0.17 * hair_volume, Vector3(head_radius * 0.22, head_y + head_radius * 0.22, front_z * 0.96), fringe_color, Vector3(0.92, 0.62, 0.14), Vector3(0.0, 0.0, 12.0))
 	_add_ellipsoid_part("Back Hair Cover", head_radius * 0.66 * hair_volume, Vector3(0.0, head_y - head_radius * 0.03, -head_radius * 0.72), hair_color, Vector3(1.05, 1.22, 0.44))
 	_add_part("Nape Hair", _capsule_mesh(head_radius * 0.82, head_radius * 0.19 * hair_volume), Vector3(0.0, head_y - head_radius * 0.42, -head_radius * 0.66), hair_color, Vector3(8.0, 0.0, 0.0))
-	_add_part("Front Hairline", _capsule_mesh(head_radius * 1.03, head_radius * 0.075 * hair_volume), Vector3(0.0, head_y + head_radius * 0.34, front_z * 1.00), fringe_color, Vector3(0.0, 0.0, 90.0), Vector3(1.0, 1.0, 0.62))
-	# 前髪は小さな楕円を重ねています。顔側は平たい板を使わず、頭の曲面上へ直接パーツを置きます。
-	_add_ellipsoid_part("Upper Bang Cover", head_radius * 0.27 * hair_volume, Vector3(0.0, head_y + head_radius * 0.42, front_z * 1.03), fringe_color, Vector3(1.48, 0.44, 0.24))
-	_add_ellipsoid_part("Bang Curtain", head_radius * 0.25 * hair_volume, Vector3(0.0, head_y + head_radius * 0.25, front_z * 1.05), fringe_color, Vector3(1.42, 0.54, 0.22))
-	_add_ellipsoid_part("Bang Fill", head_radius * 0.19 * hair_volume, Vector3(0.0, head_y + head_radius * 0.30, front_z * 1.08), fringe_color, Vector3(0.92, 0.76, 0.28))
-	_add_ellipsoid_part("Bang Center", head_radius * 0.18 * hair_volume, Vector3(0.0, head_y + head_radius * 0.39, front_z * 1.04), fringe_color, Vector3(0.76, 1.08, 0.30))
-	_add_ellipsoid_part("Bang Left", head_radius * 0.16 * hair_volume, Vector3(-head_radius * 0.24, head_y + head_radius * 0.35, front_z * 1.04), fringe_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, -13.0))
-	_add_ellipsoid_part("Bang Right", head_radius * 0.16 * hair_volume, Vector3(head_radius * 0.24, head_y + head_radius * 0.35, front_z * 1.04), fringe_color, Vector3(0.72, 1.04, 0.28), Vector3(0.0, 0.0, 13.0))
+	_add_part("Left Part Hairline", _capsule_mesh(head_radius * 0.30, head_radius * 0.028 * hair_volume), Vector3(-head_radius * 0.12, head_y + head_radius * 0.36, front_z * 0.97), fringe_color, Vector3(0.0, 0.0, 32.0), Vector3(1.0, 1.0, 0.42))
+	_add_part("Right Part Hairline", _capsule_mesh(head_radius * 0.30, head_radius * 0.028 * hair_volume), Vector3(head_radius * 0.12, head_y + head_radius * 0.36, front_z * 0.97), fringe_color, Vector3(0.0, 0.0, -32.0), Vector3(1.0, 1.0, 0.42))
+	_add_part("Center Part Seam", _capsule_mesh(head_radius * 0.22, head_radius * 0.018 * hair_volume), Vector3(0.0, head_y + head_radius * 0.48, front_z * 0.96), hair_color.darkened(0.22), Vector3.ZERO, Vector3(0.60, 1.0, 0.36))
+	_add_ellipsoid_part("Left Part Bang Tip", head_radius * 0.09 * hair_volume, Vector3(-head_radius * 0.32, head_y + head_radius * 0.20, front_z * 0.97), fringe_color, Vector3(0.58, 0.68, 0.14), Vector3(0.0, 0.0, -14.0))
+	_add_ellipsoid_part("Right Part Bang Tip", head_radius * 0.09 * hair_volume, Vector3(head_radius * 0.32, head_y + head_radius * 0.20, front_z * 0.97), fringe_color, Vector3(0.58, 0.68, 0.14), Vector3(0.0, 0.0, 14.0))
 	_add_part("Left Side Hair Base", _capsule_mesh(head_radius * 0.68, head_radius * 0.13 * hair_volume), Vector3(-head_radius * 0.62, head_y - head_radius * 0.08, -head_radius * 0.02), hair_color, Vector3(2.0, 0.0, -7.0))
 	_add_part("Right Side Hair Base", _capsule_mesh(head_radius * 0.68, head_radius * 0.13 * hair_volume), Vector3(head_radius * 0.62, head_y - head_radius * 0.08, -head_radius * 0.02), hair_color, Vector3(2.0, 0.0, 7.0))
 
@@ -219,7 +218,8 @@ func _add_face_parts(profile: Dictionary, head_y: float, head_radius: float) -> 
 	var mouth_style := int(profile.get("mouth_style", 0))
 	var eye_spacing: float = float(profile.get("eye_spacing", 0.40)) * head_radius
 	var eye_y_offset: float = float(profile.get("eye_height", 0.04)) * head_radius
-	var eye_size: float = float(profile.get("eye_size", 0.052)) * head_radius * EYE_VISIBLE_SCALE
+	var face_detail_size: float = float(profile.get("eye_size", 0.052)) * head_radius * 1.08
+	var eye_size: float = face_detail_size * EYE_VISIBLE_SCALE
 	var mouth_width: float = float(profile.get("mouth_width", 0.24)) * head_radius
 	var mouth_y_offset: float = float(profile.get("mouth_y", -0.20)) * head_radius
 
@@ -228,7 +228,7 @@ func _add_face_parts(profile: Dictionary, head_y: float, head_radius: float) -> 
 
 	# 顔はお面状の板を使わず、頭の楕円体の表面座標を計算してそこへ直接置きます。
 	# eye_style は 0:点目、1:楕円目、2:眠そう目です。まずは小さく、曲面に貼り付いて見えることを優先します。
-	var pupil := Color(0.035, 0.030, 0.028)
+	var pupil := Color(0.0, 0.0, 0.0)
 	match eye_style:
 		1:
 			_add_face_ellipsoid("Left Eye", head_radius, head_y, -eye_spacing, eye_y_offset, eye_size, pupil, Vector3(1.36, 0.68, 0.18))
@@ -240,19 +240,19 @@ func _add_face_parts(profile: Dictionary, head_y: float, head_radius: float) -> 
 			_add_face_ellipsoid("Left Dot Eye", head_radius, head_y, -eye_spacing, eye_y_offset, eye_size, pupil, Vector3(0.86, 0.86, 0.20))
 			_add_face_ellipsoid("Right Dot Eye", head_radius, head_y, eye_spacing, eye_y_offset, eye_size, pupil, Vector3(0.86, 0.86, 0.20))
 
-	_add_face_ellipsoid("Nose", head_radius, head_y, 0.0, -head_radius * 0.07, eye_size * 0.20, skin_color.darkened(0.08), Vector3(0.70, 1.00, 0.16))
-	_add_face_ellipsoid("Left Cheek", head_radius, head_y, -eye_spacing * 0.86, mouth_y_offset + eye_size * 0.58, eye_size * 0.30, Color(1.0, 0.55, 0.52, 0.20), Vector3(1.20, 0.55, 0.10))
-	_add_face_ellipsoid("Right Cheek", head_radius, head_y, eye_spacing * 0.86, mouth_y_offset + eye_size * 0.58, eye_size * 0.30, Color(1.0, 0.55, 0.52, 0.20), Vector3(1.20, 0.55, 0.10))
+	_add_face_ellipsoid("Nose", head_radius, head_y, 0.0, -head_radius * 0.07, face_detail_size * 0.20, skin_color.darkened(0.08), Vector3(0.70, 1.00, 0.16))
+	_add_face_ellipsoid("Left Cheek", head_radius, head_y, -eye_spacing * 0.86, mouth_y_offset + face_detail_size * 0.58, face_detail_size * 0.30, Color(1.0, 0.55, 0.52, 0.20), Vector3(1.20, 0.55, 0.10))
+	_add_face_ellipsoid("Right Cheek", head_radius, head_y, eye_spacing * 0.86, mouth_y_offset + face_detail_size * 0.58, face_detail_size * 0.30, Color(1.0, 0.55, 0.52, 0.20), Vector3(1.20, 0.55, 0.10))
 
 	# mouth_style は 0:にこ口、1:まっすぐ、2:小さい口。必要ならここに開き口や困り口を足します。
 	match mouth_style:
 		1:
-			_add_face_line("Flat Mouth", head_radius, head_y, 0.0, mouth_y_offset, maxf(mouth_width, eye_size * 1.55), eye_size * 0.11, Color(0.42, 0.12, 0.12), 0.0)
+			_add_face_line("Flat Mouth", head_radius, head_y, 0.0, mouth_y_offset, maxf(mouth_width, face_detail_size * 1.55), face_detail_size * 0.11, Color(0.42, 0.12, 0.12), 0.0)
 		2:
-			_add_face_ellipsoid("Small Mouth", head_radius, head_y, 0.0, mouth_y_offset, eye_size * 0.34, Color(0.48, 0.12, 0.14), Vector3(1.15, 0.56, 0.14))
+			_add_face_ellipsoid("Small Mouth", head_radius, head_y, 0.0, mouth_y_offset, face_detail_size * 0.34, Color(0.48, 0.12, 0.14), Vector3(1.15, 0.56, 0.14))
 		_:
-			_add_face_line("Smile Left", head_radius, head_y, -mouth_width * 0.22, mouth_y_offset, maxf(mouth_width * 0.58, eye_size), eye_size * 0.11, Color(0.50, 0.13, 0.13), -8.0)
-			_add_face_line("Smile Right", head_radius, head_y, mouth_width * 0.22, mouth_y_offset, maxf(mouth_width * 0.58, eye_size), eye_size * 0.11, Color(0.50, 0.13, 0.13), 8.0)
+			_add_face_line("Smile Left", head_radius, head_y, -mouth_width * 0.22, mouth_y_offset, maxf(mouth_width * 0.58, face_detail_size), face_detail_size * 0.11, Color(0.50, 0.13, 0.13), -8.0)
+			_add_face_line("Smile Right", head_radius, head_y, mouth_width * 0.22, mouth_y_offset, maxf(mouth_width * 0.58, face_detail_size), face_detail_size * 0.11, Color(0.50, 0.13, 0.13), 8.0)
 
 
 func _leg_color(outfit_type: String, cloth_color: Color, skin_color: Color) -> Color:
@@ -265,12 +265,16 @@ func _leg_color(outfit_type: String, cloth_color: Color, skin_color: Color) -> C
 
 func _add_face_ellipsoid(part_name: String, head_radius: float, head_y: float, x: float, y_offset: float, radius: float, color: Color, local_scale := Vector3.ONE, rotation_deg := Vector3.ZERO) -> MeshInstance3D:
 	var position := _face_surface_point(head_radius, head_y, x, y_offset, radius * 0.18 + FACE_PART_SURFACE_LIFT)
-	return _add_ellipsoid_part(part_name, radius, position, color, local_scale, rotation_deg)
+	var instance := _add_ellipsoid_part(part_name, radius, position, color, local_scale, rotation_deg)
+	instance.material_override = _feature_material(color)
+	return instance
 
 
 func _add_face_line(part_name: String, head_radius: float, head_y: float, x: float, y_offset: float, length: float, radius: float, color: Color, tilt_degrees := 0.0) -> MeshInstance3D:
 	var position := _face_surface_point(head_radius, head_y, x, y_offset, radius + FACE_PART_SURFACE_LIFT)
-	return _add_part(part_name, _capsule_mesh(length, radius), position, color, Vector3(0.0, 0.0, 90.0 + tilt_degrees), Vector3.ONE)
+	var instance := _add_part(part_name, _capsule_mesh(length, radius), position, color, Vector3(0.0, 0.0, 90.0 + tilt_degrees), Vector3.ONE)
+	instance.material_override = _feature_material(color)
+	return instance
 
 
 func _face_surface_point(head_radius: float, head_y: float, x: float, y_offset: float, lift := 0.0) -> Vector3:
@@ -375,4 +379,10 @@ func _material(color: Color, transparent := false) -> StandardMaterial3D:
 	if transparent or color.a < 1.0:
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		material.albedo_color.a = minf(color.a, 0.56)
+	return material
+
+
+func _feature_material(color: Color) -> StandardMaterial3D:
+	var material := _material(color)
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return material
